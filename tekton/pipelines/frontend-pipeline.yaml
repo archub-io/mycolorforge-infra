@@ -142,6 +142,20 @@ spec:
       description: Application version
       default: "1.0.0"
 
+    # Keycloak authentication parameters (embedded at build time)
+    - name: keycloak-url
+      type: string
+      description: Keycloak server URL
+      default: "https://auth.r7next.com"
+    - name: keycloak-realm
+      type: string
+      description: Keycloak realm name
+      default: "colorforge"
+    - name: keycloak-client-id
+      type: string
+      description: Keycloak client ID for frontend
+      default: "colorforge-frontend"
+
     # GitOps parameters
     - name: manifest-repo
       type: string
@@ -343,6 +357,9 @@ spec:
             - --build-arg=NEXT_PUBLIC_FARO_URL=$(params.faro-url)
             - --build-arg=NEXT_PUBLIC_APP_NAME=$(params.app-name)
             - --build-arg=NEXT_PUBLIC_APP_VERSION=$(params.app-version)
+            - --build-arg=NEXT_PUBLIC_KEYCLOAK_URL=$(params.keycloak-url)
+            - --build-arg=NEXT_PUBLIC_KEYCLOAK_REALM=$(params.keycloak-realm)
+            - --build-arg=NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=$(params.keycloak-client-id)
 
     # Stage 4: Trivy - Container Vulnerability Scan
     - name: trivy-scan

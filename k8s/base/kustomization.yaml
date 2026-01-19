@@ -1,16 +1,30 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: mycolorforge
+namespace: colorforge
+
+# ============================================
+# IMPORTANTE: Requer infraestrutura transversal R7
+# Deploy primeiro: kubectl apply -k ../../../infra/k8s/base/
+# ============================================
 
 resources:
   - namespace.yaml
   - secrets.yaml
-  - postgres-deployment.yaml
+  # Serviços transversais (ExternalName -> r7-*)
+  - external-services.yaml
+  # Redis local (cada app tem o seu próprio)
   - redis-deployment.yaml
+  # Aplicação
   - api-deployment.yaml
   - frontend-deployment.yaml
   - ingress.yaml
+  # Cloudflare tunnel
+  - cloudflare/
+
+# Removido: postgres-deployment.yaml (usar r7-data)
+# Removido: minio-deployment.yaml (usar r7-storage)
+# Removido: observability/ (usar r7-observability)
 
 commonLabels:
   app.kubernetes.io/name: mycolorforge

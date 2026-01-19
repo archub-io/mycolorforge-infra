@@ -1,0 +1,141 @@
+# ============================================
+# External Services - Referências aos serviços transversais R7
+# ============================================
+# Estes ExternalName services permitem que a app use nomes locais
+# que apontam para os namespaces corporativos (r7-data, r7-storage, etc.)
+#
+# Requer que r7/infra/k8s esteja deployado primeiro:
+#   kubectl apply -k ../../../infra/k8s/base/
+# ============================================
+
+---
+# PostgreSQL - aponta para r7-data namespace (nome antigo para compatibilidade)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: colorforge
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: r7-infrastructure
+spec:
+  type: ExternalName
+  externalName: postgresql.r7-data.svc.cluster.local
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+
+---
+# PostgreSQL - alias alternativo
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: colorforge
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: r7-infrastructure
+spec:
+  type: ExternalName
+  externalName: postgresql.r7-data.svc.cluster.local
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+
+---
+# MinIO API - aponta para r7-storage namespace
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-service
+  namespace: colorforge
+  labels:
+    app: minio
+    app.kubernetes.io/part-of: r7-infrastructure
+spec:
+  type: ExternalName
+  externalName: minio.r7-storage.svc.cluster.local
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9001
+      targetPort: 9001
+
+---
+# Keycloak - aponta para r7-auth namespace
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: colorforge
+  labels:
+    app: keycloak
+    app.kubernetes.io/part-of: r7-infrastructure
+spec:
+  type: ExternalName
+  externalName: keycloak.r7-auth.svc.cluster.local
+  ports:
+    - port: 8080
+      targetPort: 8080
+
+---
+# Grafana - aponta para r7-observability namespace
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: colorforge
+  labels:
+    app: grafana
+    app.kubernetes.io/part-of: r7-infrastructure
+spec:
+  type: ExternalName
+  externalName: grafana.r7-observability.svc.cluster.local
+  ports:
+    - port: 3000
+      targetPort: 3000
+
+---
+# Loki - aponta para r7-observability namespace
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  namespace: colorforge
+  labels:
+    app: loki
+    app.kubernetes.io/part-of: r7-infrastructure
+spec:
+  type: ExternalName
+  externalName: loki.r7-observability.svc.cluster.local
+  ports:
+    - port: 3100
+      targetPort: 3100
+
+---
+# Tempo - aponta para r7-observability namespace
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  namespace: colorforge
+  labels:
+    app: tempo
+    app.kubernetes.io/part-of: r7-infrastructure
+spec:
+  type: ExternalName
+  externalName: tempo.r7-observability.svc.cluster.local
+  ports:
+    - name: tempo
+      port: 3200
+      targetPort: 3200
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318

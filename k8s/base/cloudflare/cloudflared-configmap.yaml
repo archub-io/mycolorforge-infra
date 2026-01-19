@@ -41,15 +41,15 @@ data:
         originRequest:
           noTLSVerify: true
 
-      # Grafana - observability dashboard
+      # Grafana - observability dashboard (r7-observability transversal)
       - hostname: grafana.mycolorforge.com
-        service: http://grafana.observability.svc.cluster.local:3000
+        service: http://grafana.r7-observability.svc.cluster.local:3000
         originRequest:
           noTLSVerify: true
 
-      # OpenTelemetry Collector - OTLP HTTP endpoint for frontend telemetry
+      # Tempo - OTLP HTTP endpoint for frontend telemetry (r7-observability transversal)
       - hostname: otel.mycolorforge.com
-        service: http://otel-collector.observability.svc.cluster.local:4318
+        service: http://tempo.r7-observability.svc.cluster.local:4318
         originRequest:
           noTLSVerify: true
 
@@ -65,15 +65,15 @@ data:
         originRequest:
           noTLSVerify: true
 
-      # MinIO Storage - object storage for images
+      # MinIO Storage - object storage for images (r7-storage transversal)
       - hostname: storage.mycolorforge.com
-        service: http://minio-service.colorforge.svc.cluster.local:9000
+        service: http://minio.r7-storage.svc.cluster.local:9000
         originRequest:
           noTLSVerify: true
 
-      # MinIO Console - admin interface
+      # MinIO Console - admin interface (r7-storage transversal)
       - hostname: minio.mycolorforge.com
-        service: http://minio-service.colorforge.svc.cluster.local:9001
+        service: http://minio.r7-storage.svc.cluster.local:9001
         originRequest:
           noTLSVerify: true
 

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tcp-services
+  namespace: ingress-nginx
+data:
+  # PostgreSQL: port 5432 -> colorforge/postgres-service:5432
+  "5432": "colorforge/postgres-service:5432"
+  # MinIO API: port 9000 -> colorforge/minio-service:9000
+  "9000": "colorforge/minio-service:9000"
