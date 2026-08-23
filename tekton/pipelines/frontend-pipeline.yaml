@@ -34,7 +34,7 @@ spec:
     - name: git-url
       type: string
       description: Git repository URL
-      default: https://github.com/r7next/mycolorforge-front.git
+      default: https://github.com/archub-io/mycolorforge-front.git
     - name: git-revision
       type: string
       description: Git revision to build
@@ -146,7 +146,7 @@ spec:
     - name: keycloak-url
       type: string
       description: Keycloak server URL
-      default: "https://auth.r7next.com"
+      default: "https://auth.archublab.com"
     - name: keycloak-realm
       type: string
       description: Keycloak realm name
@@ -160,7 +160,7 @@ spec:
     - name: manifest-repo
       type: string
       description: Repository containing Kubernetes manifests
-      default: https://github.com/r7next/mycolorforge-infra.git
+      default: https://github.com/archub-io/mycolorforge-infra.git
     - name: overlay-path
       type: string
       description: Path to Kustomize overlay

@@ -65,6 +65,39 @@ spec:
                 secretKeyRef:
                   name: mycolorforge-secrets
                   key: redis-url
+            # Billing (Stripe) — Pix cross-border via EBANX (no CNPJ needed)
+            - name: APP_URL
+              value: "https://mycolorforge.com"
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mycolorforge-secrets
+                  key: stripe-secret-key
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mycolorforge-secrets
+                  key: stripe-webhook-secret
+            - name: STRIPE_PRICE_MONTHLY_EUR
+              valueFrom:
+                secretKeyRef:
+                  name: mycolorforge-secrets
+                  key: stripe-price-monthly-eur
+            - name: STRIPE_PRICE_MONTHLY_BRL
+              valueFrom:
+                secretKeyRef:
+                  name: mycolorforge-secrets
+                  key: stripe-price-monthly-brl
+            - name: STRIPE_PRICE_ANNUAL_EUR
+              valueFrom:
+                secretKeyRef:
+                  name: mycolorforge-secrets
+                  key: stripe-price-annual-eur
+            - name: STRIPE_PRICE_ANNUAL_BRL
+              valueFrom:
+                secretKeyRef:
+                  name: mycolorforge-secrets
+                  key: stripe-price-annual-brl
             - name: CORS_ORIGINS
               value: "https://mycolorforge.com,https://www.mycolorforge.com"
             - name: OTEL_ENABLED
@@ -75,18 +108,18 @@ spec:
               value: "mycolorforge-api"
             - name: OTEL_INSECURE
               value: "true"
-            # Email (Resend)
+            # Email (AWS SES)
             - name: EMAIL_ENABLED
               value: "true"
-            - name: RESEND_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: resend-credentials
-                  key: RESEND_API_KEY
+            - name: EMAIL_PROVIDER
+              value: "ses"
             - name: EMAIL_FROM
               value: "noreply@mycolorforge.com"
             - name: EMAIL_FROM_NAME
               value: "MyColorForge"
+            - name: AWS_REGION
+              value: "sa-east-1"
+            # AWS credentials via IAM role (IRSA) - no keys needed
             # MinIO Storage
             - name: MINIO_ENDPOINT
               value: "minio-service:9000"

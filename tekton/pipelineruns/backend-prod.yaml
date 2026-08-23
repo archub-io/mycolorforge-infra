@@ -11,7 +11,7 @@ spec:
     name: colorforge-backend-pipeline
   params:
     - name: git-url
-      value: "https://github.com/r7next/mycolorforge-service.git"
+      value: "https://github.com/archub-io/mycolorforge-service.git"
     - name: git-revision
       value: "main"
     - name: image-registry

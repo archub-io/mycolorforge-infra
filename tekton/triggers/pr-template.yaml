@@ -64,7 +64,7 @@ spec:
                   workspace: go-cache
               params:
                 - name: context
-                  value: mycolorforge-service/apps/api
+                  value: .
                 - name: packages
                   value: "./..."
                 - name: coverage-threshold
@@ -82,7 +82,7 @@ spec:
                   workspace: go-cache
               params:
                 - name: context
-                  value: mycolorforge-service/apps/api
+                  value: .
                 - name: package
                   value: ./cmd/server
                 - name: output

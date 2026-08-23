@@ -265,9 +265,12 @@ spec:
       ports:
         - protocol: TCP
           port: 6379
-    # MinIO
+    # MinIO (lives in the `storage` namespace)
     - to:
-        - podSelector:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: storage
+          podSelector:
             matchLabels:
               app: minio
       ports:
@@ -331,6 +334,18 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # MinIO (storage namespace) — required by the internal /storage proxy
+    # configured via rewrites() in the frontend next.config.ts
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: storage
+          podSelector:
+            matchLabels:
+              app: minio
+      ports:
+        - protocol: TCP
+          port: 9000
     # External HTTPS (Next.js Image Optimization needs to fetch images from storage.mycolorforge.com)
     - to:
         - ipBlock:
@@ -387,9 +402,12 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-    # MinIO (storage)
+    # MinIO (storage namespace)
     - to:
-        - podSelector:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: storage
+          podSelector:
             matchLabels:
               app: minio
       ports:
