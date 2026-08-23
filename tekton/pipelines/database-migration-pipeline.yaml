@@ -15,7 +15,7 @@ spec:
     - name: git-url
       type: string
       description: Git repository URL with Flyway migrations
-      default: https://github.com/r7next/mycolorforge-migrate.git
+      default: https://github.com/archub-io/mycolorforge-migrate.git
     - name: git-revision
       type: string
       description: Git revision containing migrations

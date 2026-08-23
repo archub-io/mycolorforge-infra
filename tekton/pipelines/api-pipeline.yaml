@@ -34,7 +34,7 @@ spec:
     - name: git-url
       type: string
       description: Git repository URL
-      default: https://github.com/r7next/mycolorforge-service.git
+      default: https://github.com/archub-io/mycolorforge-service.git
     - name: git-revision
       type: string
       description: Git revision to build
@@ -114,7 +114,7 @@ spec:
     - name: manifest-repo
       type: string
       description: Repository containing Kubernetes manifests
-      default: https://github.com/r7next/mycolorforge-infra.git
+      default: https://github.com/archub-io/mycolorforge-infra.git
     - name: overlay-path
       type: string
       description: Path to Kustomize overlay
@@ -172,7 +172,7 @@ spec:
           workspace: shared-workspace
       params:
         - name: source-path
-          value: apps/api
+          value: .
         - name: fail-on-leak
           value: $(params.fail-on-security-issues)
 
@@ -189,7 +189,7 @@ spec:
           workspace: go-cache
       params:
         - name: context
-          value: apps/api
+          value: .
         - name: packages
           value: "./..."
         - name: go-version
@@ -214,7 +214,7 @@ spec:
           workspace: shared-workspace
       params:
         - name: source-path
-          value: apps/api
+          value: .
         - name: fail-on-severity
           value: "critical"
         - name: output-format
@@ -235,7 +235,7 @@ spec:
           workspace: shared-workspace
       params:
         - name: source-path
-          value: apps/api
+          value: .
         - name: config
           value: "auto"
         - name: severity
@@ -268,7 +268,7 @@ spec:
         - name: project-version
           value: $(params.image-tag)
         - name: source-path
-          value: apps/api
+          value: .
         - name: language
           value: go
         - name: coverage-report
@@ -297,7 +297,7 @@ spec:
         - name: dockerfile
           value: Dockerfile
         - name: context
-          value: apps/api
+          value: .
         - name: cache
           value: "true"
         - name: cache-repo
