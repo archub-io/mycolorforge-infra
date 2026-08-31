@@ -139,13 +139,19 @@ spec:
               value: "false"
             - name: MINIO_PUBLIC_URL
               value: "https://api.mycolorforge.com/storage"
+          # A paint plan decodes several reference images and evaluates a mix
+          # for every colour against every pair on the shelf. At 300m — under a
+          # third of a core — that took twenty-six seconds, past the point where
+          # a caller assumes the request has failed. The request is raised too:
+          # at 50m the pod got a token share under contention, which is not what
+          # a service doing this work should be scheduled as.
           resources:
             requests:
               memory: "64Mi"
-              cpu: "50m"
+              cpu: "200m"
             limits:
               memory: "256Mi"
-              cpu: "300m"
+              cpu: "1000m"
           livenessProbe:
             httpGet:
               path: /health
