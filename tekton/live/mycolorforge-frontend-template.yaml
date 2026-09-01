@@ -1,0 +1,75 @@
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  labels:
+    app.kubernetes.io/part-of: mycolorforge
+  name: mycolorforge-frontend-template
+  namespace: tekton-pipelines
+spec:
+  params:
+  - description: The git revision (branch/tag/sha)
+    name: git-revision
+  - description: The git repository URL
+    name: git-url
+  - description: The image tag to use
+    name: image-tag
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1
+    kind: PipelineRun
+    metadata:
+      generateName: mycolorforge-frontend-
+      labels:
+        app.kubernetes.io/part-of: mycolorforge
+        tekton.dev/pipeline: mycolorforge-frontend-pipeline
+      namespace: tekton-pipelines
+    spec:
+      params:
+      - name: git-url
+        value: $(tt.params.git-url)
+      - name: git-revision
+        value: $(tt.params.git-revision)
+      - name: image-tag
+        value: $(tt.params.image-tag)
+      - name: security-scan-enabled
+        value: 'true'
+      - name: sonar-enabled
+        value: 'false'
+      - name: cosign-enabled
+        value: 'false'
+      - name: sbom-enabled
+        value: 'false'
+      - name: semgrep-enabled
+        value: 'false'
+      - name: trivy-enabled
+        value: 'false'
+      - name: deploy-enabled
+        value: 'false'
+      pipelineRef:
+        name: mycolorforge-frontend-pipeline
+      workspaces:
+      - name: shared-workspace
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 2Gi
+            storageClassName: local-path
+      - emptyDir: {}
+        name: node-cache
+      - emptyDir: {}
+        name: trivy-cache
+      - name: docker-credentials
+        secret:
+          secretName: harbor-push-credentials
+      - name: git-credentials
+        secret:
+          secretName: github-credentials
+      - name: sonar-credentials
+        secret:
+          secretName: sonar-credentials
+      - name: cosign-key
+        secret:
+          secretName: cosign-key
+

@@ -1,0 +1,433 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  labels:
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: mycolorforge
+  name: mycolorforge-frontend-pipeline
+  namespace: tekton-pipelines
+spec:
+  description: 'CI/CD Pipeline DevSecOps para MyColorForge Frontend (Next.js).
+
+
+    Stages:
+
+    1. Clone
+
+    2. Gitleaks (Secret Scan)
+
+    3. Build + Grype (SCA) + Semgrep (SAST)
+
+    4. SonarQube (Quality)
+
+    5. Build Image
+
+    6. Trivy Scan (Container)
+
+    7. SBOM Generation (Syft)
+
+    8. Cosign Sign (Image Signing)
+
+    9. Update Manifests (GitOps)
+
+    '
+  params:
+  - default: https://github.com/r7next/mycolorforge-front.git
+    description: Git repository URL
+    name: git-url
+    type: string
+  - default: main
+    description: Git revision to build
+    name: git-revision
+    type: string
+  - default: harbor.local
+    description: Container registry URL
+    name: image-registry
+    type: string
+  - default: colorforge/frontend
+    description: Image repository path
+    name: image-repository
+    type: string
+  - default: latest
+    description: Image tag
+    name: image-tag
+    type: string
+  - default: '20'
+    name: node-version
+    type: string
+  - default: npm
+    name: package-manager
+    type: string
+  - default: 'true'
+    description: Skip TLS verification for self-signed certs
+    name: skip-tls-verify
+    type: string
+  - default: 'true'
+    description: Enable security scans (Gitleaks, Grype, Semgrep)
+    name: security-scan-enabled
+    type: string
+  - default: 'false'
+    description: Enable Semgrep SAST analysis
+    name: semgrep-enabled
+    type: string
+  - default: 'true'
+    description: Fail pipeline on security issues
+    name: fail-on-security-issues
+    type: string
+  - default: '1'
+    description: Trivy exit code (1 = fail on vulnerabilities)
+    name: trivy-exit-code
+    type: string
+  - default: 'false'
+    description: Enable SonarQube analysis
+    name: sonar-enabled
+    type: string
+  - default: 'true'
+    description: Wait for Quality Gate result
+    name: sonar-quality-gate
+    type: string
+  - default: 'false'
+    description: Enable Cosign image signing
+    name: cosign-enabled
+    type: string
+  - default: 'false'
+    description: Enable SBOM generation with Syft
+    name: sbom-enabled
+    type: string
+  - default: keyless
+    description: Cosign signature type (keyless or key)
+    name: cosign-signature-type
+    type: string
+  - default: https://github.com/r7next/archub-infra.git
+    description: Repository containing Kubernetes manifests
+    name: manifest-repo
+    type: string
+  - default: apps/mycolorforge/k8s/overlays/production
+    description: Path to Kustomize overlay
+    name: overlay-path
+    type: string
+  - default: 'false'
+    description: Scan the built image for vulnerabilities
+    name: trivy-enabled
+    type: string
+  - default: 'false'
+    description: Update the GitOps manifests after a successful build
+    name: deploy-enabled
+    type: string
+  - default: https://api.mycolorforge.com/api/v1
+    description: Baked into the client bundle at build time
+    name: public-api-url
+    type: string
+  - default: https://mycolorforge.com
+    description: Baked into the client bundle at build time
+    name: public-app-url
+    type: string
+  - default: https://storage.mycolorforge.com/mycolorforge
+    description: Baked into the client bundle at build time
+    name: public-storage-url
+    type: string
+  - default: https://auth.archublab.com
+    description: Baked into the client bundle at build time
+    name: public-keycloak-url
+    type: string
+  - default: colorforge
+    description: Baked into the client bundle at build time
+    name: public-keycloak-realm
+    type: string
+  - default: colorforge-frontend
+    description: Baked into the client bundle at build time
+    name: public-keycloak-client-id
+    type: string
+  results:
+  - description: Full image URL with digest
+    name: image-url
+    value: $(tasks.build-image.results.image-url)
+  - description: Git commit that was built
+    name: commit-sha
+    value: $(tasks.clone.results.commit)
+  tasks:
+  - name: clone
+    params:
+    - name: url
+      value: $(params.git-url)
+    - name: revision
+      value: $(params.git-revision)
+    - name: depth
+      value: '1'
+    taskRef:
+      kind: Task
+      name: git-clone
+    workspaces:
+    - name: output
+      workspace: shared-workspace
+    - name: basic-auth
+      workspace: git-credentials
+  - name: gitleaks
+    params:
+    - name: source-path
+      value: .
+    - name: fail-on-leak
+      value: $(params.fail-on-security-issues)
+    runAfter:
+    - clone
+    taskRef:
+      kind: Task
+      name: gitleaks-scan
+    when:
+    - input: $(params.security-scan-enabled)
+      operator: in
+      values:
+      - 'true'
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+  - name: build
+    params:
+    - name: context
+      value: .
+    - name: node-version
+      value: $(params.node-version)
+    - name: package-manager
+      value: $(params.package-manager)
+    - name: build-command
+      value: build
+    runAfter:
+    - clone
+    taskRef:
+      kind: Task
+      name: nodejs-build
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+    - name: cache
+      workspace: node-cache
+  - name: grype
+    params:
+    - name: source-path
+      value: .
+    - name: fail-on-severity
+      value: high
+    - name: output-format
+      value: table
+    runAfter:
+    - clone
+    taskRef:
+      kind: Task
+      name: grype-scan
+    when:
+    - input: $(params.security-scan-enabled)
+      operator: in
+      values:
+      - 'true'
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+  - name: semgrep
+    params:
+    - name: source-path
+      value: .
+    - name: config
+      value: auto
+    - name: severity
+      value: WARNING
+    - name: fail-on-findings
+      value: $(params.fail-on-security-issues)
+    - name: exclude-patterns
+      value: node_modules,.next,dist,build,coverage
+    runAfter:
+    - clone
+    taskRef:
+      kind: Task
+      name: semgrep-scan
+    when:
+    - input: $(params.semgrep-enabled)
+      operator: in
+      values:
+      - 'true'
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+  - name: sonarqube
+    params:
+    - name: project-key
+      value: mycolorforge-frontend
+    - name: project-name
+      value: MyColorForge-Frontend
+    - name: project-version
+      value: $(params.image-tag)
+    - name: source-path
+      value: .
+    - name: language
+      value: typescript
+    - name: coverage-report
+      value: coverage/lcov.info
+    - name: quality-gate-wait
+      value: $(params.sonar-quality-gate)
+    - name: exclusions
+      value: '**/node_modules/**,**/.next/**,**/coverage/**,**/*.test.ts,**/*.test.tsx'
+    runAfter:
+    - build
+    taskRef:
+      kind: Task
+      name: sonarqube-scan
+    when:
+    - input: $(params.sonar-enabled)
+      operator: in
+      values:
+      - 'true'
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+    - name: sonar-credentials
+      workspace: sonar-credentials
+  - name: build-image
+    params:
+    - name: image
+      value: $(params.image-registry)/$(params.image-repository)
+    - name: tag
+      value: $(params.image-tag)
+    - name: dockerfile
+      value: Dockerfile
+    - name: context
+      value: .
+    - name: cache
+      value: 'true'
+    - name: cache-repo
+      value: $(params.image-registry)/$(params.image-repository)-cache
+    - name: skip-tls-verify
+      value: $(params.skip-tls-verify)
+    - name: build-args
+      value:
+      - --build-arg=NEXT_PUBLIC_API_URL=$(params.public-api-url)
+      - --build-arg=NEXT_PUBLIC_APP_URL=$(params.public-app-url)
+      - --build-arg=NEXT_PUBLIC_STORAGE_URL=$(params.public-storage-url)
+      - --build-arg=NEXT_PUBLIC_KEYCLOAK_URL=$(params.public-keycloak-url)
+      - --build-arg=NEXT_PUBLIC_KEYCLOAK_REALM=$(params.public-keycloak-realm)
+      - --build-arg=NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=$(params.public-keycloak-client-id)
+    runAfter:
+    - build
+    taskRef:
+      kind: Task
+      name: kaniko-build
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+    - name: dockerconfig
+      workspace: docker-credentials
+  - name: trivy-scan
+    params:
+    - name: image
+      value: $(params.image-registry)/$(params.image-repository):$(params.image-tag)
+    - name: severity
+      value: HIGH,CRITICAL
+    - name: exit-code
+      value: $(params.trivy-exit-code)
+    - name: skip-tls-verify
+      value: $(params.skip-tls-verify)
+    runAfter:
+    - build-image
+    taskRef:
+      kind: Task
+      name: trivy-scan
+    when:
+    - input: $(params.trivy-enabled)
+      operator: in
+      values:
+      - 'true'
+    workspaces:
+    - name: cache
+      workspace: trivy-cache
+    - name: dockerconfig
+      workspace: docker-credentials
+  - name: sbom
+    params:
+    - name: image
+      value: $(params.image-registry)/$(params.image-repository):$(params.image-tag)
+    - name: output-format
+      value: cyclonedx-json
+    - name: output-file
+      value: sbom.json
+    runAfter:
+    - trivy-scan
+    taskRef:
+      kind: Task
+      name: syft-sbom
+    when:
+    - input: $(params.sbom-enabled)
+      operator: in
+      values:
+      - 'true'
+    workspaces:
+    - name: output
+      workspace: shared-workspace
+    - name: dockerconfig
+      workspace: docker-credentials
+  - name: cosign-sign
+    params:
+    - name: image
+      value: $(params.image-registry)/$(params.image-repository):$(params.image-tag)
+    - name: signature-type
+      value: $(params.cosign-signature-type)
+    runAfter:
+    - trivy-scan
+    taskRef:
+      kind: Task
+      name: cosign-sign
+    when:
+    - input: $(params.cosign-enabled)
+      operator: in
+      values:
+      - 'true'
+    workspaces:
+    - name: dockerconfig
+      workspace: docker-credentials
+    - name: cosign-key
+      workspace: cosign-key
+  - name: update-manifests
+    params:
+    - name: git-url
+      value: $(params.manifest-repo)
+    - name: git-branch
+      value: main
+    - name: overlay-path
+      value: $(params.overlay-path)
+    - name: image-name
+      value: $(params.image-registry)/$(params.image-repository)
+    - name: new-tag
+      value: $(params.image-tag)
+    - name: new-digest
+      value: $(tasks.build-image.results.image-digest)
+    runAfter:
+    - sbom
+    - cosign-sign
+    taskRef:
+      kind: Task
+      name: kustomize-update
+    when:
+    - input: $(params.deploy-enabled)
+      operator: in
+      values:
+      - 'true'
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+    - name: basic-auth
+      workspace: git-credentials
+  workspaces:
+  - description: Shared workspace for pipeline tasks
+    name: shared-workspace
+  - description: Node modules cache
+    name: node-cache
+  - description: Trivy vulnerability database cache
+    name: trivy-cache
+  - description: Docker config.json for registry authentication
+    name: docker-credentials
+  - description: Git credentials for cloning and pushing
+    name: git-credentials
+    optional: true
+  - description: SonarQube credentials
+    name: sonar-credentials
+  - description: Cosign private key (if using key-based signing)
+    name: cosign-key
+    optional: true
+
