@@ -21,7 +21,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: tempo
-          image: grafana/tempo:2.3.1
+          image: harbor.archublab.com/mirror/grafana/tempo:2.3.1-1c6fb7c74831@sha256:e11ca3be01948e07d448adcfbe79e32fb8c25157c18e2b2e963738fc0fbdf9d8
           args:
             - '-config.file=/etc/tempo/tempo.yaml'
           ports:

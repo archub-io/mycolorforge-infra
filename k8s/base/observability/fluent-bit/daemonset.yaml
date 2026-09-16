@@ -32,7 +32,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: fluent-bit
-          image: fluent/fluent-bit:3.0
+          image: harbor.archublab.com/mirror/fluent/fluent-bit:3.0-121fd619dd74@sha256:38d953b266453036523c97a08643b8094087e422c72a133269e6dd398d48ba5f
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 2020

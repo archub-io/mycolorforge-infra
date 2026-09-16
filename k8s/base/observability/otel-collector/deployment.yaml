@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: otel-collector
-          image: otel/opentelemetry-collector-contrib:0.91.0
+          image: harbor.archublab.com/mirror/otel/opentelemetry-collector-contrib:0.91.0-894dea0499cd@sha256:8fd7ac37eb589044b522ae4109b7e15b5595a660c59272995abf55d431c07c3b
           args:
             - '--config=/etc/otel-collector/otel-collector.yaml'
           ports:
