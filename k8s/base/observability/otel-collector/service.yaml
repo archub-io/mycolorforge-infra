@@ -27,6 +27,10 @@ spec:
       port: 8889
       targetPort: 8889
       protocol: TCP
+    - name: prometheus-shared
+      port: 8890
+      targetPort: 8890
+      protocol: TCP
     - name: health
       port: 13133
       targetPort: 13133

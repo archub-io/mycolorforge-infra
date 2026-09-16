@@ -140,6 +140,13 @@ data:
             regex: '(.*)'
             replacement: '$1'
 
+      # OpenTelemetry Collector - shared exporter (8890): every product except MyColorForge, no prefix,
+      # OpenTelemetry GenAI names (docs/ai-platform in archub-infra)
+      - job_name: 'otel-shared-exporter'
+        static_configs:
+          - targets: ['otel-collector:8890']
+        honor_labels: true
+
       # Loki
       - job_name: 'loki'
         static_configs:
