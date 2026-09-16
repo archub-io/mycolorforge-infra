@@ -60,7 +60,7 @@ spec:
       description: Scan status (passed/failed)
   steps:
     - name: scan
-      image: docker.io/aquasec/trivy:0.48.3
+      image: harbor.archublab.com/mirror/aquasec/trivy:0.48.3-e587c4e3cd7c@sha256:52cb80d5bf969252b907a76495908a35c158238de3b1638747ccdffa9c7fe7e3
       env:
         - name: TRIVY_CACHE_DIR
           value: $(workspaces.cache.path)/trivy

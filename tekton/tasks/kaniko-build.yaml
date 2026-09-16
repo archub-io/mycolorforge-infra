@@ -63,7 +63,7 @@ spec:
       description: Full URL of the pushed image with digest
   steps:
     - name: build-and-push
-      image: gcr.io/kaniko-project/executor:v1.21.0
+      image: harbor.archublab.com/mirror/kaniko-project/executor:v1.21.0@sha256:d73b2b7471d7a153af30a252504056e1b8cc1afe551cb3a4e2478bdbc7a7d966
       args:
         - --dockerfile=$(workspaces.source.path)/$(params.context)/$(params.dockerfile)
         - --context=$(workspaces.source.path)/$(params.context)
@@ -90,7 +90,7 @@ spec:
           memory: "6Gi"
           cpu: "4000m"
     - name: write-url
-      image: busybox:1.36
+      image: harbor.archublab.com/mirror/library/busybox:1.36-6b219909078e@sha256:00baf5736376036ea4bc1a1c075784fc98a79186604d5d41305cd9b428b3b737
       script: |
         #!/bin/sh
         DIGEST=$(cat /tekton/results/image-digest)

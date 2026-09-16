@@ -36,7 +36,7 @@ spec:
       description: Status do scan (passed/failed)
   steps:
     - name: scan-secrets
-      image: zricethezav/gitleaks:v8.18.4
+      image: harbor.archublab.com/mirror/zricethezav/gitleaks:v8.18.4-75bdb2b2f4db@sha256:f44e526acc67786b7476db413edb993ce2d152660d32fb3eb48d9bca06fa83f8
       workingDir: $(workspaces.source.path)/$(params.source-path)
       script: |
         #!/bin/sh

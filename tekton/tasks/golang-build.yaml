@@ -55,7 +55,7 @@ spec:
       description: Size of the built binary in bytes
   steps:
     - name: build
-      image: docker.io/library/golang:$(params.go-version)-alpine
+      image: harbor.archublab.com/mirror/library/golang:$(params.go-version)-alpine
       workingDir: $(workspaces.source.path)/$(params.context)
       env:
         - name: GOOS

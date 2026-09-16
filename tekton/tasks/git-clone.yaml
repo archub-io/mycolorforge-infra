@@ -47,7 +47,7 @@ spec:
       description: The committer date of the commit
   steps:
     - name: clone
-      image: alpine/git:2.43.0
+      image: harbor.archublab.com/mirror/alpine/git:2.43.0-76fdb7210689@sha256:1c505cbd2a13d449cbd16b790f76718b640f8c38b56ef3a7d6301a05a5dde10d
       env:
         - name: HOME
           value: /tmp

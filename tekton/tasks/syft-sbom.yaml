@@ -37,7 +37,7 @@ spec:
       description: Número de pacotes encontrados
   steps:
     - name: generate-sbom
-      image: alpine:3.19
+      image: harbor.archublab.com/mirror/library/alpine:3.19-6baf43584bcb@sha256:b58899f069c47216f6002a6850143dc6fae0d35eb8b0df9300bbe6327b9c2171
       env:
         - name: DOCKER_CONFIG
           value: $(workspaces.dockerconfig.path)
