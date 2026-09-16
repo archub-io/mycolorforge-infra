@@ -68,6 +68,9 @@ spec:
               mountPath: /var/lib/grafana/dashboards
             - name: logs-dashboard
               mountPath: /var/lib/grafana/dashboards/logs
+            # Owned by archub-infra (k8s/ai-platform/observability); picked up by the file provider
+            - name: dashboard-ai-platform
+              mountPath: /var/lib/grafana/dashboards/ai-platform
             - name: storage
               mountPath: /var/lib/grafana
       volumes:
@@ -86,5 +89,8 @@ spec:
         - name: logs-dashboard
           configMap:
             name: grafana-logs-dashboard
+        - name: dashboard-ai-platform
+          configMap:
+            name: grafana-dashboard-ai-platform
         - name: storage
           emptyDir: {}
