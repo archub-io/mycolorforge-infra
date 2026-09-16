@@ -26,6 +26,10 @@ spec:
         - key: node-role.kubernetes.io/master
           operator: Exists
           effect: NoSchedule
+        # AI pool (k8s-worker02): without this, logs from that node never reach Loki
+        - key: archub.io/workload
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: fluent-bit
           image: fluent/fluent-bit:3.0
