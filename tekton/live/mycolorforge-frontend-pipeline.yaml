@@ -32,7 +32,7 @@ spec:
 
     '
   params:
-  - default: https://github.com/r7next/mycolorforge-front.git
+  - default: https://github.com/archub-io/mycolorforge-front.git
     description: Git repository URL
     name: git-url
     type: string
@@ -98,7 +98,7 @@ spec:
     description: Cosign signature type (keyless or key)
     name: cosign-signature-type
     type: string
-  - default: https://github.com/r7next/archub-infra.git
+  - default: https://github.com/archub-io/archub-infra.git
     description: Repository containing Kubernetes manifests
     name: manifest-repo
     type: string
@@ -110,7 +110,7 @@ spec:
     description: Scan the built image for vulnerabilities
     name: trivy-enabled
     type: string
-  - default: 'false'
+  - default: 'true'
     description: Update the GitOps manifests after a successful build
     name: deploy-enabled
     type: string
@@ -122,7 +122,7 @@ spec:
     description: Baked into the client bundle at build time
     name: public-app-url
     type: string
-  - default: https://storage.mycolorforge.com/mycolorforge
+  - default: https://storage.archublab.com/mycolorforge
     description: Baked into the client bundle at build time
     name: public-storage-url
     type: string

@@ -32,7 +32,7 @@ spec:
 
     '
   params:
-  - default: https://github.com/r7next/mycolorforge-service.git
+  - default: https://github.com/archub-io/mycolorforge-service.git
     description: Git repository URL
     name: git-url
     type: string
@@ -92,7 +92,7 @@ spec:
     description: Cosign signature type (keyless or key)
     name: cosign-signature-type
     type: string
-  - default: https://github.com/r7next/archub-infra.git
+  - default: https://github.com/archub-io/archub-infra.git
     description: Repository containing Kubernetes manifests
     name: manifest-repo
     type: string
@@ -161,6 +161,26 @@ spec:
       workspace: shared-workspace
     - name: cache
       workspace: go-cache
+  - name: test
+    runAfter:
+    - clone
+    taskRef:
+      kind: Task
+      name: golang-test
+    params:
+    - name: context
+      value: .
+    - name: go-version
+      value: '1.25'
+    - name: packages
+      value: ./...
+    - name: verbose
+      value: 'false'
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+    - name: cache
+      workspace: go-cache
   - name: grype
     params:
     - name: source-path
@@ -223,8 +243,11 @@ spec:
       value: $(params.sonar-quality-gate)
     - name: exclusions
       value: '**/vendor/**,**/*_test.go'
+    - name: coverage-report
+      value: coverage.out
     runAfter:
     - build
+    - test
     taskRef:
       kind: Task
       name: sonarqube-scan
@@ -256,6 +279,7 @@ spec:
       value: $(params.skip-tls-verify)
     runAfter:
     - build
+    - test
     taskRef:
       kind: Task
       name: kaniko-build
@@ -370,4 +394,3 @@ spec:
   - description: Cosign private key (if using key-based signing)
     name: cosign-key
     optional: true
-

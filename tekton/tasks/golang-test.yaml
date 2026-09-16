@@ -98,8 +98,11 @@ spec:
 
         # Use set +e to continue even if tests fail
         set +e
-        go test ${TEST_FLAGS} -coverprofile="${COVERAGE_FILE}" $(params.packages) 2>&1 | tee test-output.txt
+        # No pipe here: in sh the pipeline status is the one of the last command, so failing
+        # tests used to pass the task
+        go test ${TEST_FLAGS} -coverprofile="${COVERAGE_FILE}" $(params.packages) > test-output.txt 2>&1
         TEST_EXIT_CODE=$?
+        cat test-output.txt
         set -e
 
         # Parse test results
