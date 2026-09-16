@@ -22,7 +22,7 @@ spec:
     name: colorforge-backend-pipeline
   params:
     - name: git-url
-      value: "https://github.com/r7next/mycolorforge-service.git"
+      value: "https://github.com/archub-io/mycolorforge-service.git"
     - name: git-revision
       value: "$BRANCH"
     - name: image-name
@@ -69,7 +69,7 @@ spec:
     name: colorforge-frontend-pipeline
   params:
     - name: git-url
-      value: "https://github.com/r7next/mycolorforge-front.git"
+      value: "https://github.com/archub-io/mycolorforge-front.git"
     - name: git-revision
       value: "$BRANCH"
     - name: image-tag
