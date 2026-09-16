@@ -19,9 +19,7 @@ data:
                 - "http://localhost:3000"
               allowed_headers:
                 - "*"
-              max_age: 7200
 
-      # Prometheus receiver for scraping metrics
       prometheus:
         config:
           scrape_configs:
@@ -32,16 +30,15 @@ data:
 
     processors:
       batch:
-        timeout: 10s
-        send_batch_size: 1000
-        send_batch_max_size: 2000
+        timeout: 5s
+        send_batch_size: 512
 
       memory_limiter:
         check_interval: 1s
         limit_mib: 512
         spike_limit_mib: 128
 
-      # Add resource attributes
+      # MyColorForge metrics keep the historical colorforge_ prefix and namespace (its dashboards depend on it)
       resource:
         attributes:
           - key: service.namespace
@@ -51,33 +48,57 @@ data:
             value: production
             action: upsert
 
-      # Filter out health checks and internal paths
+      # Other products set their own service.namespace; colorforge is only a fallback
+      resource/defaults:
+        attributes:
+          - key: service.namespace
+            value: colorforge
+            action: insert
+          - key: deployment.environment
+            value: production
+            action: upsert
+
+      resource/environment:
+        attributes:
+          - key: deployment.environment
+            value: production
+            action: upsert
+
+      # Split metrics by product: MyColorForge and the collector itself -> 8889 (prefixed),
+      # every other service (GetWalletly, ai-platform clients) -> 8890 (no prefix, GenAI semconv names)
+      filter/colorforge-metrics:
+        error_mode: ignore
+        metrics:
+          metric:
+            - 'resource.attributes["service.name"] != nil and not IsMatch(resource.attributes["service.name"], "^(mycolorforge|otel-collector)")'
+
+      filter/shared-metrics:
+        error_mode: ignore
+        metrics:
+          metric:
+            - 'resource.attributes["service.name"] == nil'
+            - 'IsMatch(resource.attributes["service.name"], "^(mycolorforge|otel-collector)")'
+
+      # Filter out health checks only
       filter:
         error_mode: ignore
         traces:
           span:
             - 'attributes["http.target"] == "/health"'
             - 'attributes["http.target"] == "/ready"'
-            - 'attributes["http.target"] == "/metrics"'
+            - 'attributes["http.route"] == "/health"'
+            - 'attributes["http.route"] == "/ready"'
 
-      # Tail sampling for traces (keep errors, slow requests, sample rest)
+      # Tail sampling - 100% para Service Graph funcionar
       tail_sampling:
         decision_wait: 10s
-        num_traces: 100
-        expected_new_traces_per_sec: 10
+        num_traces: 500
+        expected_new_traces_per_sec: 100
         policies:
-          - name: errors
-            type: status_code
-            status_code: {status_codes: [ERROR]}
-          - name: slow-traces
-            type: latency
-            latency: {threshold_ms: 1000}
-          - name: probabilistic
-            type: probabilistic
-            probabilistic: {sampling_percentage: 10}
+          - name: always-sample
+            type: always_sample
 
     exporters:
-      # Prometheus exporter for metrics
       prometheus:
         endpoint: 0.0.0.0:8889
         namespace: colorforge
@@ -87,24 +108,29 @@ data:
           enabled: false
         add_metric_suffixes: false
 
-      # Loki exporter for logs (using loki receiver format)
+      prometheus/shared:
+        endpoint: 0.0.0.0:8890
+        send_timestamps: true
+        metric_expiration: 5m
+        resource_to_telemetry_conversion:
+          enabled: false
+        add_metric_suffixes: false
+
       loki:
         endpoint: http://loki:3100/loki/api/v1/push
         default_labels_enabled:
           exporter: true
           job: true
 
-      # OTLP exporter to Tempo for traces
       otlp/tempo:
         endpoint: tempo:4317
         tls:
           insecure: true
 
-      # Debug exporter (for troubleshooting)
       debug:
-        verbosity: basic
-        sampling_initial: 5
-        sampling_thereafter: 200
+        verbosity: detailed
+        sampling_initial: 10
+        sampling_thereafter: 50
 
     extensions:
       health_check:
@@ -116,22 +142,27 @@ data:
       extensions: [health_check, zpages]
       telemetry:
         logs:
-          level: info
+          level: debug
         metrics:
           address: 0.0.0.0:8888
 
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, filter, tail_sampling, batch, resource]
-          exporters: [otlp/tempo]
+          processors: [memory_limiter, filter, tail_sampling, batch, resource/defaults]
+          exporters: [otlp/tempo, debug]
 
         metrics:
           receivers: [otlp, prometheus]
-          processors: [memory_limiter, batch, resource]
+          processors: [memory_limiter, filter/colorforge-metrics, batch, resource]
           exporters: [prometheus]
+
+        metrics/shared:
+          receivers: [otlp]
+          processors: [memory_limiter, filter/shared-metrics, batch, resource/environment]
+          exporters: [prometheus/shared]
 
         logs:
           receivers: [otlp]
-          processors: [memory_limiter, batch, resource]
+          processors: [memory_limiter, batch, resource/defaults]
           exporters: [loki]
