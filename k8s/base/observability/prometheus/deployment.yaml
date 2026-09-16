@@ -22,7 +22,7 @@ spec:
         runAsUser: 65534
       containers:
         - name: prometheus
-          image: prom/prometheus:v2.48.0
+          image: harbor.archublab.com/mirror/prom/prometheus:v2.48.0-b440bc0e8aa5@sha256:13f40c0279df792517b456ae6427dd6344685e9b1478fb9de8e4dc418727668f
           args:
             - '--config.file=/etc/prometheus/prometheus.yml'
             - '--storage.tsdb.path=/prometheus'
