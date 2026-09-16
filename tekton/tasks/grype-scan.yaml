@@ -45,7 +45,7 @@ spec:
       description: Status do scan (passed/failed)
   steps:
     - name: grype-scan
-      image: alpine:3.19
+      image: harbor.archublab.com/mirror/library/alpine:3.19-6baf43584bcb@sha256:b58899f069c47216f6002a6850143dc6fae0d35eb8b0df9300bbe6327b9c2171
       workingDir: $(workspaces.source.path)/$(params.source-path)
       script: |
         #!/bin/sh

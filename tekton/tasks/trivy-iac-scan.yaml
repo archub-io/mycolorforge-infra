@@ -49,7 +49,7 @@ spec:
       description: Status do scan (passed/failed)
   steps:
     - name: trivy-iac
-      image: aquasec/trivy:0.48.0
+      image: harbor.archublab.com/mirror/aquasec/trivy:0.48.0@sha256:edf85e2483eb5bbea47415a831880129ba7bb0a6e18e673c0670189b50277d51
       workingDir: $(workspaces.source.path)
       script: |
         #!/bin/sh

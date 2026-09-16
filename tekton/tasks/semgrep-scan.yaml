@@ -45,7 +45,7 @@ spec:
       description: Status do scan (passed/failed)
   steps:
     - name: semgrep-scan
-      image: semgrep/semgrep:1.52.0
+      image: harbor.archublab.com/mirror/semgrep/semgrep:1.52.0-f33325700023@sha256:2151a972c372ab184f2dcd3dd1bc5f6775291d85aa8ff5d7fcc8dbc0adf9596a
       workingDir: $(workspaces.source.path)/$(params.source-path)
       env:
         - name: SEMGREP_SEND_METRICS

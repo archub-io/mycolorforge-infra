@@ -53,7 +53,7 @@ spec:
       description: Number of tests failed
   steps:
     - name: test
-      image: docker.io/library/golang:$(params.go-version)-alpine
+      image: harbor.archublab.com/mirror/library/golang:$(params.go-version)-alpine
       workingDir: $(workspaces.source.path)/$(params.context)
       env:
         - name: CGO_ENABLED

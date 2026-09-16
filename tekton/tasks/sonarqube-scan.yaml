@@ -118,7 +118,7 @@ spec:
           cpu: "1000m"
 
     - name: quality-gate
-      image: curlimages/curl:8.5.0
+      image: harbor.archublab.com/mirror/curlimages/curl:8.5.0-08e466006f08@sha256:62d48ac8f6e7a87291d3d9fdad2eeea9cb44cba2c32bc6121c7fdd11c244eb08
       env:
         - name: SONAR_TOKEN
           valueFrom:

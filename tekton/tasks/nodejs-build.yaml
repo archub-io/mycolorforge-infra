@@ -41,7 +41,7 @@ spec:
       description: Build status (success/failed)
   steps:
     - name: install-dependencies
-      image: docker.io/library/node:$(params.node-version)-alpine
+      image: harbor.archublab.com/mirror/library/node:$(params.node-version)-alpine
       workingDir: $(workspaces.source.path)/$(params.context)
       env:
         - name: npm_config_cache
@@ -101,7 +101,7 @@ spec:
           cpu: "2000m"
 
     - name: build
-      image: docker.io/library/node:$(params.node-version)-alpine
+      image: harbor.archublab.com/mirror/library/node:$(params.node-version)-alpine
       workingDir: $(workspaces.source.path)/$(params.context)
       env:
         - name: NODE_ENV
