@@ -12,7 +12,7 @@ data:
 
     [security]
     admin_user = admin
-    admin_password = ColorForge2025!
+    # admin password: secret observability/grafana-credentials (GF_SECURITY_ADMIN_PASSWORD)
     disable_gravatar = true
 
     [users]
