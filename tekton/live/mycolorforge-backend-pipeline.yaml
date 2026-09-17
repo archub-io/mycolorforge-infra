@@ -89,6 +89,10 @@ spec:
     description: Path to Kustomize overlay
     name: overlay-path
     type: string
+  - name: pipeline-mode
+    type: string
+    default: full
+    description: full runs every check; fast skips SonarQube, grype and the SBOM
   results:
   - description: Full image URL with digest
     name: image-url
@@ -188,6 +192,10 @@ spec:
       operator: in
       values:
       - 'true'
+    - input: $(params.pipeline-mode)
+      operator: in
+      values:
+      - full
     workspaces:
     - name: source
       workspace: shared-workspace
@@ -245,6 +253,10 @@ spec:
       operator: in
       values:
       - 'true'
+    - input: $(params.pipeline-mode)
+      operator: in
+      values:
+      - full
     workspaces:
     - name: source
       workspace: shared-workspace
@@ -319,6 +331,10 @@ spec:
       operator: in
       values:
       - 'true'
+    - input: $(params.pipeline-mode)
+      operator: in
+      values:
+      - full
     workspaces:
     - name: output
       workspace: shared-workspace

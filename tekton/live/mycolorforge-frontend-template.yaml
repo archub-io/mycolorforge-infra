@@ -1,10 +1,10 @@
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
-  labels:
-    app.kubernetes.io/part-of: mycolorforge
   name: mycolorforge-frontend-template
   namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/part-of: mycolorforge
 spec:
   params:
   - description: The git revision (branch/tag/sha)
@@ -13,6 +13,8 @@ spec:
     name: git-url
   - description: The image tag to use
     name: image-tag
+  - name: pipeline-mode
+    default: full
   resourcetemplates:
   - apiVersion: tekton.dev/v1
     kind: PipelineRun
@@ -44,6 +46,8 @@ spec:
         value: 'true'
       - name: deploy-enabled
         value: 'true'
+      - name: pipeline-mode
+        value: $(tt.params.pipeline-mode)
       pipelineRef:
         name: mycolorforge-frontend-pipeline
       workspaces:
@@ -72,4 +76,3 @@ spec:
       - name: cosign-key
         secret:
           secretName: cosign-key
-
