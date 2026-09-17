@@ -21,6 +21,9 @@ data:
         Name              tail
         Tag               kube.*
         Path              /var/log/containers/*.log
+    # Build pods come and go by the hundred and Tekton keeps their logs; tailing them all
+    # exceeded fluent-bit's 1024 open files on worker01
+    Exclude_Path      /var/log/containers/*_tekton-pipelines_*.log
         Parser            docker
         DB                /var/fluent-bit/flb_kube.db
         Mem_Buf_Limit     50MB
