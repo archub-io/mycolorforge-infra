@@ -35,15 +35,15 @@ spec:
       - name: sonar-enabled
         value: 'false'
       - name: cosign-enabled
-        value: 'false'
+        value: 'true'
       - name: sbom-enabled
-        value: 'false'
+        value: 'true'
       - name: semgrep-enabled
-        value: 'false'
+        value: 'true'
       - name: trivy-enabled
-        value: 'false'
+        value: 'true'
       - name: deploy-enabled
-        value: 'false'
+        value: 'true'
       pipelineRef:
         name: mycolorforge-frontend-pipeline
       workspaces:
