@@ -4,94 +4,63 @@ metadata:
   name: syft-sbom
   namespace: tekton-pipelines
   labels:
-    app.kubernetes.io/part-of: colorforge
+    app.kubernetes.io/part-of: getwalletly
 spec:
   description: |
     Gera Software Bill of Materials (SBOM) usando Syft.
-    Lista todas as dependências e componentes da imagem.
+    Lista todas as dependencias e componentes da imagem.
   params:
-    - name: image
-      type: string
-      description: Imagem para gerar SBOM
-    - name: output-format
-      type: string
-      description: Formato do SBOM (spdx-json, cyclonedx-json, syft-json)
-      default: "cyclonedx-json"
-    - name: output-file
-      type: string
-      description: Nome do arquivo SBOM
-      default: "sbom.json"
-    - name: skip-tls-verify
-      type: string
-      description: Skip TLS verification for self-signed certs
-      default: "false"
-  workspaces:
-    - name: output
-      description: Workspace para salvar o SBOM
-    - name: dockerconfig
-      description: Docker config.json para autenticação
+  - description: Imagem para gerar SBOM
+    name: image
+    type: string
+  - default: cyclonedx-json
+    description: Formato do SBOM (spdx-json, cyclonedx-json, syft-json)
+    name: output-format
+    type: string
+  - default: sbom.json
+    description: Nome do arquivo SBOM
+    name: output-file
+    type: string
+  - default: 'false'
+    description: Skip TLS verification for self-signed certs
+    name: skip-tls-verify
+    type: string
   results:
-    - name: sbom-path
-      description: Caminho do arquivo SBOM gerado
-    - name: packages-count
-      description: Número de pacotes encontrados
+  - description: Caminho do arquivo SBOM gerado
+    name: sbom-path
+    type: string
+  - description: Numero de pacotes encontrados
+    name: packages-count
+    type: string
   steps:
-    - name: generate-sbom
-      image: harbor.archublab.com/mirror/library/alpine:3.19-6baf43584bcb@sha256:b58899f069c47216f6002a6850143dc6fae0d35eb8b0df9300bbe6327b9c2171
-      env:
-        - name: DOCKER_CONFIG
-          value: $(workspaces.dockerconfig.path)
-      script: |
-        #!/bin/sh
-        set -e
-        echo "=== Installing Syft ==="
-        wget -qO- https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin v0.100.0
-
-
-        echo "=== Syft SBOM Generator ==="
-        echo "Image: $(params.image)"
-        echo "Format: $(params.output-format)"
-        echo ""
-
-        OUTPUT_PATH="$(workspaces.output.path)/$(params.output-file)"
-
-        # Set TLS skip if needed via environment variable
-        if [ "$(params.skip-tls-verify)" = "true" ]; then
-          export SYFT_REGISTRY_INSECURE_SKIP_TLS_VERIFY=true
-          echo "TLS verification disabled"
-        fi
-
-        echo "=== Generating SBOM ==="
-        syft "$(params.image)" \
-          --output "$(params.output-format)=${OUTPUT_PATH}" \
-          --scope all-layers
-
-        echo ""
-        echo "=== SBOM Generated ==="
-
-        # Count packages
-        PACKAGES_COUNT=0
-        if [ -f "${OUTPUT_PATH}" ]; then
-          case "$(params.output-format)" in
-            *json*)
-              PACKAGES_COUNT=$(cat "${OUTPUT_PATH}" | grep -c '"name"' || echo "0")
-              ;;
-          esac
-        fi
-
-        echo "Packages Found: ${PACKAGES_COUNT}"
-        echo "SBOM Path: ${OUTPUT_PATH}"
-
-        # Write results
-        printf "%s" "${OUTPUT_PATH}" > "$(results.sbom-path.path)"
-        printf "%s" "${PACKAGES_COUNT}" > "$(results.packages-count.path)"
-
-        echo ""
-        echo "=== SBOM Generation Complete ==="
-      computeResources:
-        requests:
-          memory: "512Mi"
-          cpu: "250m"
-        limits:
-          memory: "2Gi"
-          cpu: "1000m"
+  - computeResources:
+      limits:
+        cpu: '1'
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    env:
+    - name: DOCKER_CONFIG
+      value: $(workspaces.dockerconfig.path)
+    - name: HOME
+      value: /tekton/home
+    image: harbor.archublab.com/mirror/anchore/syft:v1.51.1-debug@sha256:15b4eab9f9ebfcbc687840b207ff948cd3fe3ffe2f633f74ab6bf8fd0dd33e80
+    name: generate-sbom
+    script: |
+      #!/busybox/sh
+      set -eu
+      OUTPUT_PATH="$(workspaces.output.path)/$(params.output-file)"
+      if [ "$(params.skip-tls-verify)" = "true" ]; then
+        export SYFT_REGISTRY_INSECURE_SKIP_TLS_VERIFY=true
+      fi
+      /syft scan "$(params.image)" --output "$(params.output-format)=${OUTPUT_PATH}" --scope all-layers
+      PACKAGES=$(grep -o '"bom-ref"' "${OUTPUT_PATH}" | wc -l | tr -d ' ')
+      echo "SBOM ${OUTPUT_PATH}: ${PACKAGES} components"
+      printf "%s" "${OUTPUT_PATH}" > "$(results.sbom-path.path)"
+      printf "%s" "${PACKAGES}" > "$(results.packages-count.path)"
+  workspaces:
+  - description: Workspace para salvar o SBOM
+    name: output
+  - description: Docker config.json para autenticacao
+    name: dockerconfig

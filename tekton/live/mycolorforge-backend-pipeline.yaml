@@ -1,36 +1,25 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
+  name: mycolorforge-backend-pipeline
+  namespace: tekton-pipelines
   labels:
     app.kubernetes.io/component: backend
     app.kubernetes.io/part-of: mycolorforge
-  name: mycolorforge-backend-pipeline
-  namespace: tekton-pipelines
 spec:
-  description: 'CI/CD Pipeline DevSecOps para MyColorForge Backend (Go).
-
+  description: |
+    CI/CD Pipeline DevSecOps para MyColorForge Backend (Go).
 
     Stages:
-
     1. Clone
-
     2. Gitleaks (Secret Scan)
-
     3. Build + Grype (SCA) + Semgrep (SAST)
-
     4. SonarQube (Quality)
-
     5. Build Image
-
     6. Trivy Scan (Container)
-
     7. SBOM Generation (Syft)
-
     8. Cosign Sign (Image Signing)
-
     9. Update Manifests (GitOps)
-
-    '
   params:
   - default: https://github.com/archub-io/mycolorforge-service.git
     description: Git repository URL
@@ -88,7 +77,7 @@ spec:
     description: Enable SBOM generation with Syft
     name: sbom-enabled
     type: string
-  - default: keyless
+  - default: key
     description: Cosign signature type (keyless or key)
     name: cosign-signature-type
     type: string
@@ -162,11 +151,6 @@ spec:
     - name: cache
       workspace: go-cache
   - name: test
-    runAfter:
-    - clone
-    taskRef:
-      kind: Task
-      name: golang-test
     params:
     - name: context
       value: .
@@ -176,6 +160,11 @@ spec:
       value: ./...
     - name: verbose
       value: 'false'
+    runAfter:
+    - clone
+    taskRef:
+      kind: Task
+      name: golang-test
     workspaces:
     - name: source
       workspace: shared-workspace
@@ -279,6 +268,10 @@ spec:
       value: $(params.skip-tls-verify)
     runAfter:
     - build
+    - gitleaks
+    - grype
+    - semgrep
+    - sonarqube
     - test
     taskRef:
       kind: Task
@@ -291,7 +284,7 @@ spec:
   - name: trivy-scan
     params:
     - name: image
-      value: $(params.image-registry)/$(params.image-repository):$(params.image-tag)
+      value: harbor.archublab.com/$(params.image-repository)@$(tasks.build-image.results.image-digest)
     - name: severity
       value: HIGH,CRITICAL
     - name: exit-code
@@ -311,7 +304,7 @@ spec:
   - name: sbom
     params:
     - name: image
-      value: $(params.image-registry)/$(params.image-repository):$(params.image-tag)
+      value: harbor.archublab.com/$(params.image-repository)@$(tasks.build-image.results.image-digest)
     - name: output-format
       value: cyclonedx-json
     - name: output-file
@@ -334,9 +327,9 @@ spec:
   - name: cosign-sign
     params:
     - name: image
-      value: $(params.image-registry)/$(params.image-repository):$(params.image-tag)
+      value: harbor.archublab.com/$(params.image-repository)@$(tasks.build-image.results.image-digest)
     - name: signature-type
-      value: $(params.cosign-signature-type)
+      value: key
     runAfter:
     - trivy-scan
     taskRef:
@@ -393,4 +386,3 @@ spec:
     name: sonar-credentials
   - description: Cosign private key (if using key-based signing)
     name: cosign-key
-    optional: true
