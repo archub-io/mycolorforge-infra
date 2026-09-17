@@ -5,7 +5,7 @@ namespace: observability
 
 resources:
   - namespace.yaml
-  - prometheus/
+  # Metrics live in kube-prometheus-stack (archub-infra platform/monitoring)
   - loki/
   - tempo/
   - otel-collector/
