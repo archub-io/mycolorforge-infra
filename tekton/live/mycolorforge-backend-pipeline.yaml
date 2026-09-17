@@ -148,7 +148,7 @@ spec:
     - name: context
       value: .
     - name: go-version
-      value: '1.25'
+      value: '1.26'
     - name: package
       value: ./cmd/server
     runAfter:
@@ -171,7 +171,7 @@ spec:
     - name: context
       value: .
     - name: go-version
-      value: '1.25'
+      value: '1.26'
     - name: packages
       value: ./...
     - name: verbose
