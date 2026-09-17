@@ -4,96 +4,108 @@ metadata:
   name: kaniko-build
   namespace: tekton-pipelines
   labels:
-    app.kubernetes.io/part-of: mycolorforge
+    app.kubernetes.io/part-of: getwalletly
 spec:
   description: |
     Build and push container images using Kaniko.
     Kaniko builds images inside a container without requiring Docker daemon.
-    Optimized for Harbor registry with TLS support.
   params:
-    - name: image
-      type: string
-      description: Full image name including registry (e.g., harbor.example.com/mycolorforge/api)
-    - name: tag
-      type: string
-      description: Image tag
-      default: latest
-    - name: dockerfile
-      type: string
-      description: Path to Dockerfile relative to context
-      default: Dockerfile
-    - name: context
-      type: string
-      description: Build context path relative to workspace
-      default: "."
-    - name: build-args
-      type: array
-      description: Build arguments (KEY=VALUE format)
-      default: []
-    - name: cache
-      type: string
-      description: Enable layer caching
-      default: "true"
-    - name: cache-repo
-      type: string
-      description: Cache repository for layer caching
-      default: ""
-    - name: insecure-registry
-      type: string
-      description: Allow insecure registry (HTTP)
-      default: "false"
-    - name: skip-tls-verify
-      type: string
-      description: Skip TLS verification (for self-signed certs)
-      default: "false"
-    - name: verbosity
-      type: string
-      description: Log verbosity (panic, fatal, error, warn, info, debug, trace)
-      default: "info"
-  workspaces:
-    - name: source
-      description: Workspace containing the source code and Dockerfile
-    - name: dockerconfig
-      description: Docker config.json with registry credentials
-      optional: true
+  - description: Full image name including registry (e.g., harbor.local/getwalletly/api)
+    name: image
+    type: string
+  - default: latest
+    description: Image tag
+    name: tag
+    type: string
+  - default: Dockerfile
+    description: Path to Dockerfile relative to context
+    name: dockerfile
+    type: string
+  - default: .
+    description: Build context path relative to workspace
+    name: context
+    type: string
+  - default: []
+    description: Build arguments (KEY=VALUE format)
+    name: build-args
+    type: array
+  - default: 'true'
+    description: Enable layer caching
+    name: cache
+    type: string
+  - default: ''
+    description: Cache repository for layer caching
+    name: cache-repo
+    type: string
+  - default: 'false'
+    description: Allow insecure registry (HTTP)
+    name: insecure-registry
+    type: string
+  - default: 'false'
+    description: Skip TLS verification (for self-signed certs)
+    name: skip-tls-verify
+    type: string
+  - default: info
+    description: Log verbosity (panic, fatal, error, warn, info, debug, trace)
+    name: verbosity
+    type: string
   results:
-    - name: image-digest
-      description: Digest of the built image
-    - name: image-url
-      description: Full URL of the pushed image with digest
+  - description: Digest of the built image
+    name: image-digest
+    type: string
+  - description: Full URL of the pushed image with digest
+    name: image-url
+    type: string
+  - description: Image repository and tag, public registry name (read by Tekton Chains)
+    name: IMAGE_URL
+    type: string
+  - description: Image digest (read by Tekton Chains)
+    name: IMAGE_DIGEST
+    type: string
   steps:
-    - name: build-and-push
-      image: harbor.archublab.com/mirror/kaniko-project/executor:v1.21.0@sha256:d73b2b7471d7a153af30a252504056e1b8cc1afe551cb3a4e2478bdbc7a7d966
-      args:
-        - --dockerfile=$(workspaces.source.path)/$(params.context)/$(params.dockerfile)
-        - --context=$(workspaces.source.path)/$(params.context)
-        - --destination=$(params.image):$(params.tag)
-        - --digest-file=/tekton/results/image-digest
-        - --verbosity=$(params.verbosity)
-        - --snapshotMode=redo
-        - --use-new-run
-        - --cache=$(params.cache)
-        - --cache-repo=$(params.cache-repo)
-        - --skip-tls-verify=$(params.skip-tls-verify)
-        - --insecure=$(params.insecure-registry)
-        - $(params.build-args[*])
-      env:
-        - name: DOCKER_CONFIG
-          value: $(workspaces.dockerconfig.path)
-      securityContext:
-        runAsUser: 0
-      computeResources:
-        requests:
-          memory: "2Gi"
-          cpu: "1000m"
-        limits:
-          memory: "6Gi"
-          cpu: "4000m"
-    - name: write-url
-      image: harbor.archublab.com/mirror/library/busybox:1.36-6b219909078e@sha256:00baf5736376036ea4bc1a1c075784fc98a79186604d5d41305cd9b428b3b737
-      script: |
-        #!/bin/sh
-        DIGEST=$(cat /tekton/results/image-digest)
-        echo "$(params.image)@${DIGEST}" > /tekton/results/image-url
-        echo "Image built: $(params.image):$(params.tag)"
-        echo "Digest: ${DIGEST}"
+  - args:
+    - --dockerfile=$(workspaces.source.path)/$(params.context)/$(params.dockerfile)
+    - --context=$(workspaces.source.path)/$(params.context)
+    - --destination=$(params.image):$(params.tag)
+    - --digest-file=/tekton/results/image-digest
+    - --verbosity=$(params.verbosity)
+    - --snapshot-mode=full
+    - --use-new-run
+    - --cache=$(params.cache)
+    - --cache-repo=$(params.cache-repo)
+    - --skip-tls-verify=$(params.skip-tls-verify)
+    - --insecure=$(params.insecure-registry)
+    - $(params.build-args[*])
+    computeResources:
+      limits:
+        cpu: '4'
+        memory: 6Gi
+      requests:
+        cpu: '1'
+        memory: 2Gi
+    env:
+    - name: DOCKER_CONFIG
+      value: $(workspaces.dockerconfig.path)
+    image: harbor.archublab.com/mirror/kaniko-project/executor:v1.21.0@sha256:d73b2b7471d7a153af30a252504056e1b8cc1afe551cb3a4e2478bdbc7a7d966
+    name: build-and-push
+    securityContext:
+      runAsUser: 0
+  - computeResources: {}
+    image: harbor.archublab.com/mirror/library/busybox:1.36-6b219909078e@sha256:00baf5736376036ea4bc1a1c075784fc98a79186604d5d41305cd9b428b3b737
+    name: write-url
+    script: |
+      #!/bin/sh
+      DIGEST=$(cat /tekton/results/image-digest)
+      echo "$(params.image)@${DIGEST}" > /tekton/results/image-url
+      # Chains signs and attests through the TLS name, not the plain-HTTP LAN alias
+      REPO=$(echo "$(params.image)" | sed "s#^harbor\.local/#harbor.archublab.com/#")
+      printf "%s" "${REPO}:$(params.tag)" > /tekton/results/IMAGE_URL
+      printf "%s" "${DIGEST}" > /tekton/results/IMAGE_DIGEST
+      echo "Image built: $(params.image):$(params.tag)"
+      echo "Digest: ${DIGEST}"
+  workspaces:
+  - description: Workspace containing the source code and Dockerfile
+    name: source
+  - description: Docker config.json with registry credentials
+    name: dockerconfig
+    optional: true
