@@ -53,7 +53,7 @@ data:
       storage:
         path: /var/tempo/generator/wal
         remote_write:
-          - url: http://prometheus:9090/api/v1/write
+          - url: http://kps-prometheus.monitoring.svc.cluster.local:9090/api/v1/write
             send_exemplars: true
 
     storage:
