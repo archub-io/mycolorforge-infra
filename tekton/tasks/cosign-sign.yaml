@@ -62,6 +62,8 @@ spec:
       export COSIGN_PASSWORD
       # Private registry: do not publish image names to the public transparency log
       /ko-app/cosign sign --yes --key "$KEY" --use-signing-config=false --tlog-upload=false "$IMAGE"
+      # Also in the classic .sig tag format: Kyverno 1.16 verifyImages does not read OCI referrer bundles
+      /ko-app/cosign sign --yes --key "$KEY" --use-signing-config=false --tlog-upload=false --new-bundle-format=false "$IMAGE"
       /ko-app/cosign verify --key "$PUB" --insecure-ignore-tlog=true "$IMAGE" > /dev/null
       printf signed > "$(results.signature.path)"
       printf "%s" "$IMAGE" > "$(results.signed-image.path)"
