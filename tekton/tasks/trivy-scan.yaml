@@ -4,172 +4,162 @@ metadata:
   name: trivy-scan
   namespace: tekton-pipelines
   labels:
-    app.kubernetes.io/part-of: mycolorforge
+    app.kubernetes.io/part-of: getwalletly
 spec:
   description: |
     Scan container images for vulnerabilities using Trivy.
     Supports multiple output formats and severity filtering.
-    Integrates well with Harbor's built-in scanner.
   params:
-    - name: image
-      type: string
-      description: Full image URL to scan (with tag or digest)
-    - name: severity
-      type: string
-      description: Severity levels to report (UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL)
-      default: "HIGH,CRITICAL"
-    - name: exit-code
-      type: string
-      description: Exit code when vulnerabilities are found (0 to ignore, 1 to fail)
-      default: "1"
-    - name: ignore-unfixed
-      type: string
-      description: Ignore vulnerabilities without fixes
-      default: "false"
-    - name: format
-      type: string
-      description: Output format (table, json, sarif, template)
-      default: "table"
-    - name: skip-db-update
-      type: string
-      description: Skip database update (use cached)
-      default: "false"
-    - name: timeout
-      type: string
-      description: Scan timeout
-      default: "10m"
-    - name: skip-tls-verify
-      type: string
-      description: Skip TLS verification for self-signed certs
-      default: "false"
-  workspaces:
-    - name: cache
-      description: Trivy cache directory
-      optional: true
-    - name: dockerconfig
-      description: Docker config.json for private registries
-      optional: true
+  - description: Full image URL to scan (with tag or digest)
+    name: image
+    type: string
+  - default: HIGH,CRITICAL
+    description: Severity levels to report (UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL)
+    name: severity
+    type: string
+  - default: '1'
+    description: Exit code when vulnerabilities are found (0 to ignore, 1 to fail)
+    name: exit-code
+    type: string
+  - default: 'false'
+    description: Ignore vulnerabilities without fixes
+    name: ignore-unfixed
+    type: string
+  - default: table
+    description: Output format (table, json, sarif, template)
+    name: format
+    type: string
+  - default: 'false'
+    description: Skip database update (use cached)
+    name: skip-db-update
+    type: string
+  - default: 10m
+    description: Scan timeout
+    name: timeout
+    type: string
+  - default: 'false'
+    description: Skip TLS verification for self-signed certs
+    name: skip-tls-verify
+    type: string
   results:
-    - name: vulnerabilities-count
-      description: Total number of vulnerabilities found
-    - name: critical-count
-      description: Number of CRITICAL vulnerabilities
-    - name: high-count
-      description: Number of HIGH vulnerabilities
-    - name: scan-status
-      description: Scan status (passed/failed)
+  - description: Total number of vulnerabilities found
+    name: vulnerabilities-count
+    type: string
+  - description: Number of CRITICAL vulnerabilities
+    name: critical-count
+    type: string
+  - description: Number of HIGH vulnerabilities
+    name: high-count
+    type: string
+  - description: Scan status (passed/failed)
+    name: scan-status
+    type: string
   steps:
-    - name: scan
-      image: harbor.archublab.com/mirror/aquasec/trivy:0.48.3-e587c4e3cd7c@sha256:52cb80d5bf969252b907a76495908a35c158238de3b1638747ccdffa9c7fe7e3
-      env:
-        - name: TRIVY_CACHE_DIR
-          value: $(workspaces.cache.path)/trivy
-        - name: DOCKER_CONFIG
-          value: $(workspaces.dockerconfig.path)
-        - name: TRIVY_INSECURE
-          value: "$(params.skip-tls-verify)"
-      script: |
-        #!/bin/sh
-        set -e
+  - computeResources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    env:
+    - name: TRIVY_CACHE_DIR
+      value: $(workspaces.cache.path)/trivy
+    - name: DOCKER_CONFIG
+      value: $(workspaces.dockerconfig.path)
+    - name: TRIVY_INSECURE
+      value: $(params.skip-tls-verify)
+    image: harbor.archublab.com/mirror/aquasec/trivy:0.74.0@sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9
+    name: scan
+    script: |
+      #!/bin/sh
+      set -e
 
-        echo "=== Trivy Security Scan ==="
-        echo "Image: $(params.image)"
-        echo "Severity Filter: $(params.severity)"
-        echo "Exit on Vulnerabilities: $(params.exit-code)"
-        echo "Ignore Unfixed: $(params.ignore-unfixed)"
-        echo "Skip TLS Verify: $(params.skip-tls-verify)"
-        echo ""
+      echo "=== Trivy Security Scan ==="
+      echo "Image: $(params.image)"
+      echo "Severity Filter: $(params.severity)"
+      echo "Exit on Vulnerabilities: $(params.exit-code)"
+      echo ""
 
-        # Create cache directory
-        mkdir -p "${TRIVY_CACHE_DIR}"
+      mkdir -p "${TRIVY_CACHE_DIR}"
 
-        # Build Trivy arguments
-        TRIVY_ARGS="image"
-        TRIVY_ARGS="${TRIVY_ARGS} --severity=$(params.severity)"
-        TRIVY_ARGS="${TRIVY_ARGS} --format=$(params.format)"
-        TRIVY_ARGS="${TRIVY_ARGS} --timeout=$(params.timeout)"
+      TRIVY_ARGS="image"
+      TRIVY_ARGS="${TRIVY_ARGS} --severity=$(params.severity)"
+      TRIVY_ARGS="${TRIVY_ARGS} --format=$(params.format)"
+      TRIVY_ARGS="${TRIVY_ARGS} --timeout=$(params.timeout)"
 
-        if [ "$(params.ignore-unfixed)" = "true" ]; then
-          TRIVY_ARGS="${TRIVY_ARGS} --ignore-unfixed"
-        fi
+      if [ "$(params.ignore-unfixed)" = "true" ]; then
+        TRIVY_ARGS="${TRIVY_ARGS} --ignore-unfixed"
+      fi
 
-        if [ "$(params.skip-db-update)" = "true" ]; then
-          TRIVY_ARGS="${TRIVY_ARGS} --skip-db-update"
-        fi
+      if [ "$(params.skip-db-update)" = "true" ]; then
+        TRIVY_ARGS="${TRIVY_ARGS} --skip-db-update"
+      fi
 
+      if [ "$(params.skip-tls-verify)" = "true" ]; then
+        TRIVY_ARGS="${TRIVY_ARGS} --insecure"
+      fi
+
+      echo "=== Running Vulnerability Scan ==="
+
+      set +e
+      trivy ${TRIVY_ARGS} --exit-code=0 "$(params.image)" 2>&1 | tee scan-output.txt
+      SCAN_EXIT=$?
+      set -e
+
+      JSON_ARGS="image --severity=$(params.severity) --format=json --timeout=$(params.timeout)"
+      if [ "$(params.skip-tls-verify)" = "true" ]; then
+        JSON_ARGS="${JSON_ARGS} --insecure"
+      fi
+
+      trivy ${JSON_ARGS} "$(params.image)" > scan-results.json 2>/dev/null || true
+
+      if [ -f scan-results.json ]; then
+        TOTAL_VULNS=$(cat scan-results.json | grep -o '"VulnerabilityID"' | wc -l)
+        CRITICAL=$(cat scan-results.json | grep -o '"Severity":"CRITICAL"' | wc -l)
+        HIGH=$(cat scan-results.json | grep -o '"Severity":"HIGH"' | wc -l)
+      else
+        TOTAL_VULNS=0
+        CRITICAL=0
+        HIGH=0
+      fi
+
+      echo ""
+      echo "=== Scan Summary ==="
+      echo "Total Vulnerabilities: ${TOTAL_VULNS}"
+      echo "Critical: ${CRITICAL}"
+      echo "High: ${HIGH}"
+
+      printf "%s" "${TOTAL_VULNS}" > "$(results.vulnerabilities-count.path)"
+      printf "%s" "${CRITICAL}" > "$(results.critical-count.path)"
+      printf "%s" "${HIGH}" > "$(results.high-count.path)"
+
+      if [ "$(params.exit-code)" = "1" ]; then
+        CHECK_ARGS="image --severity=$(params.severity) --exit-code=1 --quiet"
         if [ "$(params.skip-tls-verify)" = "true" ]; then
-          TRIVY_ARGS="${TRIVY_ARGS} --insecure"
+          CHECK_ARGS="${CHECK_ARGS} --insecure"
         fi
 
-        # Also output JSON for parsing
-        echo "=== Running Vulnerability Scan ==="
-
-        # Run scan and capture output
         set +e
-        trivy ${TRIVY_ARGS} --exit-code=0 "$(params.image)" 2>&1 | tee scan-output.txt
-        SCAN_EXIT=$?
+        trivy ${CHECK_ARGS} "$(params.image)" > /dev/null 2>&1
+        CHECK_EXIT=$?
         set -e
 
-        # Build JSON args
-        JSON_ARGS="image --severity=$(params.severity) --format=json --timeout=$(params.timeout)"
-        if [ "$(params.skip-tls-verify)" = "true" ]; then
-          JSON_ARGS="${JSON_ARGS} --insecure"
+        if [ ${CHECK_EXIT} -ne 0 ]; then
+          echo ""
+          echo "FAILED: Vulnerabilities found matching severity filter"
+          printf "failed" > "$(results.scan-status.path)"
+          exit 1
         fi
+      fi
 
-        # Run JSON scan for parsing
-        trivy ${JSON_ARGS} "$(params.image)" > scan-results.json 2>/dev/null || true
-
-        # Parse results
-        if [ -f scan-results.json ]; then
-          TOTAL_VULNS=$(cat scan-results.json | grep -o '"VulnerabilityID"' | wc -l)
-          CRITICAL=$(cat scan-results.json | grep -o '"Severity":"CRITICAL"' | wc -l)
-          HIGH=$(cat scan-results.json | grep -o '"Severity":"HIGH"' | wc -l)
-        else
-          TOTAL_VULNS=0
-          CRITICAL=0
-          HIGH=0
-        fi
-
-        echo ""
-        echo "=== Scan Summary ==="
-        echo "Total Vulnerabilities: ${TOTAL_VULNS}"
-        echo "Critical: ${CRITICAL}"
-        echo "High: ${HIGH}"
-
-        # Write results
-        printf "%s" "${TOTAL_VULNS}" > "$(results.vulnerabilities-count.path)"
-        printf "%s" "${CRITICAL}" > "$(results.critical-count.path)"
-        printf "%s" "${HIGH}" > "$(results.high-count.path)"
-
-        # Determine pass/fail based on exit-code parameter
-        if [ "$(params.exit-code)" = "1" ]; then
-          # Build check args
-          CHECK_ARGS="image --severity=$(params.severity) --exit-code=1 --quiet"
-          if [ "$(params.skip-tls-verify)" = "true" ]; then
-            CHECK_ARGS="${CHECK_ARGS} --insecure"
-          fi
-
-          # Re-run with exit code to fail on vulnerabilities
-          set +e
-          trivy ${CHECK_ARGS} "$(params.image)" > /dev/null 2>&1
-          CHECK_EXIT=$?
-          set -e
-
-          if [ ${CHECK_EXIT} -ne 0 ]; then
-            echo ""
-            echo "FAILED: Vulnerabilities found matching severity filter"
-            printf "failed" > "$(results.scan-status.path)"
-            exit 1
-          fi
-        fi
-
-        echo ""
-        echo "=== Scan Passed ==="
-        printf "passed" > "$(results.scan-status.path)"
-      computeResources:
-        requests:
-          memory: "256Mi"
-          cpu: "100m"
-        limits:
-          memory: "1Gi"
-          cpu: "500m"
+      echo ""
+      echo "=== Scan Passed ==="
+      printf "passed" > "$(results.scan-status.path)"
+  workspaces:
+  - description: Trivy cache directory
+    name: cache
+    optional: true
+  - description: Docker config.json for private registries
+    name: dockerconfig
+    optional: true

@@ -4,102 +4,99 @@ metadata:
   name: gitleaks-scan
   namespace: tekton-pipelines
   labels:
-    app.kubernetes.io/part-of: colorforge
+    app.kubernetes.io/part-of: getwalletly
 spec:
   description: |
-    Scan de secrets no código fonte usando Gitleaks.
+    Scan de secrets no codigo fonte usando Gitleaks.
     Detecta credenciais, API keys, tokens e outros segredos hardcoded.
   params:
-    - name: source-path
-      type: string
-      description: Caminho para o código fonte
-      default: "."
-    - name: config-path
-      type: string
-      description: Caminho para arquivo de configuração customizado
-      default: ""
-    - name: fail-on-leak
-      type: string
-      description: Falhar o pipeline se encontrar secrets
-      default: "true"
-    - name: redact
-      type: string
-      description: Ocultar valores sensíveis no relatório
-      default: "true"
-  workspaces:
-    - name: source
-      description: Workspace contendo o código fonte
+  - default: .
+    description: Caminho para o codigo fonte
+    name: source-path
+    type: string
+  - default: ''
+    description: Caminho para arquivo de configuracao customizado
+    name: config-path
+    type: string
+  - default: 'true'
+    description: Falhar o pipeline se encontrar secrets
+    name: fail-on-leak
+    type: string
+  - default: 'true'
+    description: Ocultar valores sensiveis no relatorio
+    name: redact
+    type: string
   results:
-    - name: leaks-found
-      description: Número de leaks encontrados
-    - name: scan-status
-      description: Status do scan (passed/failed)
+  - description: Numero de leaks encontrados
+    name: leaks-found
+    type: string
+  - description: Status do scan (passed/failed)
+    name: scan-status
+    type: string
   steps:
-    - name: scan-secrets
-      image: harbor.archublab.com/mirror/zricethezav/gitleaks:v8.18.4-75bdb2b2f4db@sha256:f44e526acc67786b7476db413edb993ce2d152660d32fb3eb48d9bca06fa83f8
-      workingDir: $(workspaces.source.path)/$(params.source-path)
-      script: |
-        #!/bin/sh
-        set -e
+  - computeResources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    image: harbor.archublab.com/mirror/zricethezav/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb
+    name: scan-secrets
+    script: |
+      #!/bin/sh
+      set -e
 
-        echo "=== Gitleaks Secret Scanner ==="
-        echo "Source Path: $(params.source-path)"
+      echo "=== Gitleaks Secret Scanner ==="
+      echo "Source Path: $(params.source-path)"
+      echo ""
+
+      ARGS="detect --source . --verbose"
+
+      if [ "$(params.redact)" = "true" ]; then
+        ARGS="${ARGS} --redact"
+      fi
+
+      if [ -n "$(params.config-path)" ] && [ -f "$(params.config-path)" ]; then
+        ARGS="${ARGS} --config $(params.config-path)"
+      fi
+
+      echo "=== Running Gitleaks ==="
+      set +e
+      gitleaks ${ARGS} --report-format json --report-path /tmp/gitleaks-report.json 2>&1
+      SCAN_EXIT=$?
+      set -e
+
+      LEAKS_COUNT=0
+      if [ -f /tmp/gitleaks-report.json ]; then
+        LEAKS_COUNT=$(cat /tmp/gitleaks-report.json | grep -c '"RuleID"' || echo "0")
+      fi
+
+      echo ""
+      echo "=== Scan Summary ==="
+      echo "Leaks Found: ${LEAKS_COUNT}"
+
+      printf "%s" "${LEAKS_COUNT}" > "$(results.leaks-found.path)"
+
+      if [ ${SCAN_EXIT} -ne 0 ] && [ ${LEAKS_COUNT} -gt 0 ]; then
+        printf "failed" > "$(results.scan-status.path)"
         echo ""
+        echo "WARNING: Secrets detected in codebase!"
 
-        # Build command arguments
-        ARGS="detect --source . --verbose"
-
-        if [ "$(params.redact)" = "true" ]; then
-          ARGS="${ARGS} --redact"
-        fi
-
-        if [ -n "$(params.config-path)" ] && [ -f "$(params.config-path)" ]; then
-          ARGS="${ARGS} --config $(params.config-path)"
-        fi
-
-        # Run scan
-        echo "=== Running Gitleaks ==="
-        set +e
-        gitleaks ${ARGS} --report-format json --report-path /tmp/gitleaks-report.json 2>&1
-        SCAN_EXIT=$?
-        set -e
-
-        # Parse results
-        LEAKS_COUNT=0
-        if [ -f /tmp/gitleaks-report.json ]; then
-          LEAKS_COUNT=$(cat /tmp/gitleaks-report.json | grep -c '"RuleID"' || echo "0")
-        fi
-
-        echo ""
-        echo "=== Scan Summary ==="
-        echo "Leaks Found: ${LEAKS_COUNT}"
-
-        # Write results
-        printf "%s" "${LEAKS_COUNT}" > "$(results.leaks-found.path)"
-
-        if [ ${SCAN_EXIT} -ne 0 ] && [ ${LEAKS_COUNT} -gt 0 ]; then
-          printf "failed" > "$(results.scan-status.path)"
-
-          echo ""
-          echo "WARNING: Secrets detected in codebase!"
-
-          if [ "$(params.fail-on-leak)" = "true" ]; then
-            echo "FAILED: Pipeline stopped due to secret leaks"
-            exit 1
-          else
-            echo "WARNING: Continuing despite secret leaks (fail-on-leak=false)"
-          fi
+        if [ "$(params.fail-on-leak)" = "true" ]; then
+          echo "FAILED: Pipeline stopped due to secret leaks"
+          exit 1
         else
-          printf "passed" > "$(results.scan-status.path)"
-          echo "No secrets detected!"
+          echo "WARNING: Continuing despite secret leaks (fail-on-leak=false)"
         fi
+      else
+        printf "passed" > "$(results.scan-status.path)"
+        echo "No secrets detected!"
+      fi
 
-        echo ""
-        echo "=== Gitleaks Scan Complete ==="
-      computeResources:
-        requests:
-          memory: "256Mi"
-          cpu: "100m"
-        limits:
-          memory: "512Mi"
-          cpu: "500m"
+      echo ""
+      echo "=== Gitleaks Scan Complete ==="
+    workingDir: $(workspaces.source.path)/$(params.source-path)
+  workspaces:
+  - description: Workspace contendo o codigo fonte
+    name: source

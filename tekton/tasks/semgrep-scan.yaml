@@ -4,136 +4,119 @@ metadata:
   name: semgrep-scan
   namespace: tekton-pipelines
   labels:
-    app.kubernetes.io/part-of: colorforge
+    app.kubernetes.io/part-of: getwalletly
 spec:
   description: |
     Analise estatica de seguranca usando Semgrep.
     Leve, rapido e focado em vulnerabilidades de seguranca.
-    Complementa o SonarQube com regras especificas de seguranca.
   params:
-    - name: source-path
-      type: string
-      description: Caminho do codigo fonte no workspace
-      default: "."
-    - name: config
-      type: string
-      description: Configuracao do Semgrep (auto, p/security-audit, p/owasp-top-ten, etc)
-      default: "auto"
-    - name: severity
-      type: string
-      description: Severidade minima para reportar (INFO, WARNING, ERROR)
-      default: "WARNING"
-    - name: fail-on-findings
-      type: string
-      description: Falhar se encontrar issues
-      default: "true"
-    - name: exclude-patterns
-      type: string
-      description: Patterns para excluir (separados por virgula)
-      default: "node_modules,vendor,.next,dist,build,coverage"
-  workspaces:
-    - name: source
-      description: Workspace com o codigo fonte
+  - default: .
+    description: Caminho do codigo fonte no workspace
+    name: source-path
+    type: string
+  - default: p/default
+    description: Configuracao do Semgrep (auto, p/security-audit, p/owasp-top-ten, etc)
+    name: config
+    type: string
+  - default: ERROR
+    description: Lowest severity that fails the task (ERROR, WARNING or INFO)
+    name: severity
+    type: string
+  - default: 'true'
+    description: Falhar se encontrar issues
+    name: fail-on-findings
+    type: string
+  - default: node_modules,vendor,.next,dist,build,coverage
+    description: Patterns para excluir (separados por virgula)
+    name: exclude-patterns
+    type: string
   results:
-    - name: findings-count
-      description: Numero de findings
-    - name: errors-count
-      description: Numero de erros (severidade ERROR)
-    - name: warnings-count
-      description: Numero de warnings
-    - name: scan-status
-      description: Status do scan (passed/failed)
+  - description: Numero de findings
+    name: findings-count
+    type: string
+  - description: Numero de erros (severidade ERROR)
+    name: errors-count
+    type: string
+  - description: Numero de warnings
+    name: warnings-count
+    type: string
+  - description: Status do scan (passed/failed)
+    name: scan-status
+    type: string
   steps:
-    - name: semgrep-scan
-      image: harbor.archublab.com/mirror/semgrep/semgrep:1.52.0-f33325700023@sha256:2151a972c372ab184f2dcd3dd1bc5f6775291d85aa8ff5d7fcc8dbc0adf9596a
-      workingDir: $(workspaces.source.path)/$(params.source-path)
-      env:
-        - name: SEMGREP_SEND_METRICS
-          value: "off"
-      script: |
-        #!/bin/sh
-        set -e
-
-        echo "=== Semgrep Security Scanner ==="
-        echo "Source Path: $(params.source-path)"
-        echo "Config: $(params.config)"
-        echo "Severity: $(params.severity)"
-        echo ""
-
-        # Construir lista de exclusoes
-        EXCLUDE_OPTS=""
-        IFS=','
-        for pattern in $(params.exclude-patterns); do
-          EXCLUDE_OPTS="$EXCLUDE_OPTS --exclude $pattern"
-        done
-        unset IFS
-
-        # Arquivo de output JSON para parsing
-        OUTPUT_FILE="/tmp/semgrep-results.json"
-
-        echo "=== Running Semgrep Analysis ==="
-
-        # Executar semgrep
-        SCAN_EXIT=0
-        semgrep scan \
-          --config $(params.config) \
-          --severity $(params.severity) \
-          --json \
-          --output ${OUTPUT_FILE} \
-          ${EXCLUDE_OPTS} \
-          . 2>&1 || SCAN_EXIT=$?
-
-        # Mostrar resultados em formato legivel
-        echo ""
-        echo "=== Findings Summary ==="
-
-        if [ -f "${OUTPUT_FILE}" ]; then
-          # Contar findings por severidade usando grep (sem jq)
-          ERRORS=$(grep -o '"severity": "ERROR"' ${OUTPUT_FILE} 2>/dev/null | wc -l || echo "0")
-          WARNINGS=$(grep -o '"severity": "WARNING"' ${OUTPUT_FILE} 2>/dev/null | wc -l || echo "0")
-          INFO=$(grep -o '"severity": "INFO"' ${OUTPUT_FILE} 2>/dev/null | wc -l || echo "0")
-          TOTAL=$((ERRORS + WARNINGS + INFO))
-
-          echo "Errors: ${ERRORS}"
-          echo "Warnings: ${WARNINGS}"
-          echo "Info: ${INFO}"
-          echo "Total: ${TOTAL}"
-
-          # Mostrar detalhes dos findings
-          if [ ${TOTAL} -gt 0 ]; then
-            echo ""
-            echo "=== Detailed Findings ==="
-            # Extrair e mostrar findings principais
-            grep -o '"check_id": "[^"]*"' ${OUTPUT_FILE} | head -20 | sort | uniq -c | sort -rn
-          fi
-
-          # Escrever resultados
-          printf "%s" "${TOTAL}" > "$(results.findings-count.path)"
-          printf "%s" "${ERRORS}" > "$(results.errors-count.path)"
-          printf "%s" "${WARNINGS}" > "$(results.warnings-count.path)"
-        else
-          printf "0" > "$(results.findings-count.path)"
-          printf "0" > "$(results.errors-count.path)"
-          printf "0" > "$(results.warnings-count.path)"
-          ERRORS=0
-          TOTAL=0
-        fi
-
-        echo ""
-
-        # Determinar status final
-        if [ "$(params.fail-on-findings)" = "true" ] && [ ${ERRORS} -gt 0 ]; then
-          printf "failed" > "$(results.scan-status.path)"
-          echo "=== Scan FAILED - Security issues found ==="
-          exit 1
-        else
-          printf "passed" > "$(results.scan-status.path)"
-          echo "=== Scan PASSED ==="
-        fi
-      computeResources:
-        requests:
-          memory: "512Mi"
-          cpu: "250m"
-        limits:
-          memory: "2Gi"
-          cpu: "1000m"
+  - computeResources: {}
+    env:
+    - name: SEMGREP_SEND_METRICS
+      value: 'off'
+    - name: HOME
+      value: /tekton/home
+    image: harbor.archublab.com/mirror/semgrep/semgrep:1.177.0@sha256:d1825c2c72110b5bfbf0602ff68f7f117322597a7c33037a79dba9f897f5f1f0
+    name: prepare
+    script: |
+      #!/bin/sh
+      cat > /tekton/home/verdict.py <<'VERDICT'
+      import json, sys
+      out, threshold, f_total, f_err, f_warn = sys.argv[1:]
+      order = {"INFO": 0, "WARNING": 1, "ERROR": 2}
+      data = json.load(open(out))
+      for e in data.get("errors", [])[:3]:
+          print("scanner error:", str(e.get("message", ""))[:160], file=sys.stderr)
+      results = data.get("results", [])
+      sev = [r.get("extra", {}).get("severity", "INFO").upper() for r in results]
+      for r in results[:40]:
+          print(f"  {r['extra'].get('severity')} {r['check_id']} {r['path']}:{r['start']['line']}", file=sys.stderr)
+      open(f_total, "w").write(str(len(results)))
+      open(f_err, "w").write(str(sev.count("ERROR")))
+      open(f_warn, "w").write(str(sev.count("WARNING")))
+      limit = order.get(threshold.upper(), 2)
+      print(sum(1 for s in sev if order.get(s, 0) >= limit))
+      VERDICT
+  - computeResources:
+      limits:
+        cpu: '1'
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    env:
+    - name: SEMGREP_SEND_METRICS
+      value: 'off'
+    - name: HOME
+      value: /tekton/home
+    image: harbor.archublab.com/mirror/semgrep/semgrep:1.177.0@sha256:d1825c2c72110b5bfbf0602ff68f7f117322597a7c33037a79dba9f897f5f1f0
+    name: semgrep-scan
+    script: |
+      #!/bin/sh
+      # Registry rulesets work with metrics off ("auto" does not). Results are counted from the JSON,
+      # and the task fails when a finding at or above the chosen severity exists.
+      set -eu
+      EXCLUDES=""
+      for pattern in $(echo "$(params.exclude-patterns)" | tr ',' ' '); do
+        EXCLUDES="$EXCLUDES --exclude $pattern"
+      done
+      OUT=/tekton/home/semgrep.json
+      set +e
+      CONFIG="$(params.config)"
+      # "auto" needs metrics; the registry default ruleset is the closest equivalent
+      if [ "$CONFIG" = "auto" ]; then CONFIG="p/default"; fi
+      semgrep scan --metrics off --config "$CONFIG" --json --output "$OUT" $EXCLUDES .
+      RC=$?
+      set -e
+      if [ ! -s "$OUT" ]; then
+        echo "semgrep produced no report (exit ${RC})"
+        printf failed > "$(results.scan-status.path)"
+        exit 1
+      fi
+      BLOCKING=$(python3 /tekton/home/verdict.py "$OUT" "$(params.severity)" "$(results.findings-count.path)" "$(results.errors-count.path)" "$(results.warnings-count.path)")
+      echo "Findings at or above $(params.severity): ${BLOCKING}"
+      if [ "$(params.fail-on-findings)" = "true" ] && [ "${BLOCKING}" -gt 0 ]; then
+        printf failed > "$(results.scan-status.path)"
+        echo "=== Scan FAILED ==="
+        exit 1
+      fi
+      printf passed > "$(results.scan-status.path)"
+      echo "=== Scan PASSED ==="
+    workingDir: $(workspaces.source.path)/$(params.source-path)
+  workspaces:
+  - description: Workspace com o codigo fonte
+    name: source

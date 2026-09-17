@@ -4,109 +4,70 @@ metadata:
   name: cosign-sign
   namespace: tekton-pipelines
   labels:
-    app.kubernetes.io/part-of: colorforge
+    app.kubernetes.io/part-of: getwalletly
 spec:
   description: |
     Assina imagens de container usando Cosign (Sigstore).
     Garante integridade e autenticidade das imagens.
   params:
-    - name: image
-      type: string
-      description: Imagem completa com tag ou digest para assinar
-    - name: signature-type
-      type: string
-      description: Tipo de assinatura (keyless ou key)
-      default: "keyless"
-    - name: skip-tls-verify
-      type: string
-      description: Skip TLS verification for self-signed certs
-      default: "false"
-  workspaces:
-    - name: dockerconfig
-      description: Docker config.json para autenticação no registry
-    - name: cosign-key
-      description: Chave privada do Cosign (se signature-type=key)
-      optional: true
+  - description: Imagem completa com tag ou digest para assinar
+    name: image
+    type: string
+  - default: key
+    description: Only key-based signing is supported (no OIDC in the cluster)
+    name: signature-type
+    type: string
+  - default: 'false'
+    description: Skip TLS verification for self-signed certs
+    name: skip-tls-verify
+    type: string
   results:
-    - name: signature
-      description: Assinatura da imagem
-    - name: signed-image
-      description: Imagem assinada
+  - description: Assinatura da imagem
+    name: signature
+    type: string
+  - description: Imagem assinada
+    name: signed-image
+    type: string
   steps:
-    - name: sign-image
-      image: harbor.archublab.com/mirror/library/alpine:3.19-6baf43584bcb@sha256:b58899f069c47216f6002a6850143dc6fae0d35eb8b0df9300bbe6327b9c2171
-      env:
-        - name: DOCKER_CONFIG
-          value: $(workspaces.dockerconfig.path)
-        - name: COSIGN_EXPERIMENTAL
-          value: "1"
-      script: |
-        #!/bin/sh
-        set -e
-
-        echo "=== Installing Cosign ==="
-        apk add --no-cache curl bash
-        curl -sL https://github.com/sigstore/cosign/releases/download/v2.2.2/cosign-linux-amd64 -o /usr/local/bin/cosign
-        chmod +x /usr/local/bin/cosign
-
-        echo "=== Cosign Image Signing ==="
-        echo "Image: $(params.image)"
-        echo "Signature Type: $(params.signature-type)"
-        echo "Skip TLS Verify: $(params.skip-tls-verify)"
-        echo ""
-
-        IMAGE="$(params.image)"
-
-        # Set TLS skip if needed
-        COSIGN_ARGS=""
-        if [ "$(params.skip-tls-verify)" = "true" ]; then
-          COSIGN_ARGS="--insecure-skip-verify"
-          export COSIGN_INSECURE_SKIP_VERIFY=true
-        fi
-
-        case "$(params.signature-type)" in
-          "keyless")
-            echo "=== Using Keyless Signing (Sigstore/Fulcio) ==="
-            # Keyless signing uses OIDC identity
-            cosign sign --yes ${COSIGN_ARGS} "${IMAGE}" || {
-              echo "WARNING: Keyless signing failed (requires OIDC setup)"
-              echo "Skipping signing for now - image is not signed"
-              printf "skipped" > "$(results.signature.path)"
-              printf "%s" "${IMAGE}" > "$(results.signed-image.path)"
-              exit 0
-            }
-            ;;
-          "key")
-            echo "=== Using Key-based Signing ==="
-            if [ ! -f "$(workspaces.cosign-key.path)/cosign.key" ]; then
-              echo "WARNING: cosign.key not found in workspace"
-              echo "Skipping signing for now - image is not signed"
-              printf "skipped" > "$(results.signature.path)"
-              printf "%s" "${IMAGE}" > "$(results.signed-image.path)"
-              exit 0
-            fi
-            cosign sign --key "$(workspaces.cosign-key.path)/cosign.key" --yes ${COSIGN_ARGS} "${IMAGE}"
-            ;;
-          *)
-            echo "ERROR: Unknown signature type: $(params.signature-type)"
-            exit 1
-            ;;
-        esac
-
-        echo ""
-        echo "=== Verifying Signature ==="
-        cosign verify "${IMAGE}" --insecure-ignore-tlog=true 2>/dev/null || echo "Verification requires public key or keyless setup"
-
-        # Write results
-        printf "%s" "signed" > "$(results.signature.path)"
-        printf "%s" "${IMAGE}" > "$(results.signed-image.path)"
-
-        echo ""
-        echo "=== Image Successfully Signed ==="
-      computeResources:
-        requests:
-          memory: "128Mi"
-          cpu: "100m"
-        limits:
-          memory: "512Mi"
-          cpu: "500m"
+  - computeResources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    env:
+    - name: DOCKER_CONFIG
+      value: $(workspaces.dockerconfig.path)
+    - name: HOME
+      value: /tekton/home
+    image: harbor.archublab.com/mirror/sigstore/cosign:v3.1.3-dev@sha256:32b6d702a5c6663372a3242e7f9f66a9a3ad4bdb955eb4dfc5df0be8875b02d2
+    name: sign-image
+    script: |
+      #!/busybox/sh
+      # Key-based signing only. Any failure fails the task: an unsigned image must never look signed.
+      set -eu
+      IMAGE="$(params.image)"
+      case "$IMAGE" in
+        *@sha256:*) ;;
+        *) echo "ERROR: sign by digest, got ${IMAGE}"; exit 1 ;;
+      esac
+      KEY="$(workspaces.cosign-key.path)/cosign.key"
+      PUB="$(workspaces.cosign-key.path)/cosign.pub"
+      if [ ! -s "$KEY" ] || [ ! -s "$PUB" ]; then
+        echo "ERROR: cosign key pair missing in the cosign-key secret"
+        exit 1
+      fi
+      COSIGN_PASSWORD="$(cat "$(workspaces.cosign-key.path)/cosign.password")"
+      export COSIGN_PASSWORD
+      # Private registry: do not publish image names to the public transparency log
+      /ko-app/cosign sign --yes --key "$KEY" --use-signing-config=false --tlog-upload=false "$IMAGE"
+      /ko-app/cosign verify --key "$PUB" --insecure-ignore-tlog=true "$IMAGE" > /dev/null
+      printf signed > "$(results.signature.path)"
+      printf "%s" "$IMAGE" > "$(results.signed-image.path)"
+      echo "=== ${IMAGE} signed and verified ==="
+  workspaces:
+  - description: Docker config.json para autenticacao no registry
+    name: dockerconfig
+  - description: Chave privada do Cosign (se signature-type=key)
+    name: cosign-key

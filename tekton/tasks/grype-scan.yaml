@@ -4,146 +4,96 @@ metadata:
   name: grype-scan
   namespace: tekton-pipelines
   labels:
-    app.kubernetes.io/part-of: colorforge
+    app.kubernetes.io/part-of: getwalletly
 spec:
   description: |
     Scan de vulnerabilidades em dependencias usando Grype (Anchore).
-    Muito mais rapido que OWASP Dependency-Check.
     Suporta Go, Node.js, Python, Java, Ruby, Rust, etc.
   params:
-    - name: source-path
-      type: string
-      description: Caminho do codigo fonte no workspace
-      default: "."
-    - name: fail-on-severity
-      type: string
-      description: Falhar se encontrar vulnerabilidades desta severidade ou maior (negligible, low, medium, high, critical)
-      default: "high"
-    - name: output-format
-      type: string
-      description: Formato do output (table, json, cyclonedx, sarif)
-      default: "table"
-    - name: only-fixed
-      type: string
-      description: Mostrar apenas vulnerabilidades com fix disponivel
-      default: "false"
-    - name: ignore-stdlib
-      type: string
-      description: Ignorar vulnerabilidades da stdlib do Go (requer update do Go local)
-      default: "true"
-  workspaces:
-    - name: source
-      description: Workspace com o codigo fonte
+  - default: .
+    description: Caminho do codigo fonte no workspace
+    name: source-path
+    type: string
+  - default: high
+    description: Falhar se encontrar vulnerabilidades desta severidade ou maior (negligible, low, medium, high, critical)
+    name: fail-on-severity
+    type: string
+  - default: table
+    description: Formato do output (table, json, cyclonedx, sarif)
+    name: output-format
+    type: string
+  - default: 'false'
+    description: Mostrar apenas vulnerabilidades com fix disponivel
+    name: only-fixed
+    type: string
+  - default: 'true'
+    description: Ignorar vulnerabilidades da stdlib do Go
+    name: ignore-stdlib
+    type: string
   results:
-    - name: vulnerabilities-count
-      description: Numero de vulnerabilidades encontradas
-    - name: critical-count
-      description: Numero de vulnerabilidades criticas
-    - name: high-count
-      description: Numero de vulnerabilidades altas
-    - name: scan-status
-      description: Status do scan (passed/failed)
+  - description: Numero de vulnerabilidades encontradas
+    name: vulnerabilities-count
+    type: string
+  - description: Numero de vulnerabilidades criticas
+    name: critical-count
+    type: string
+  - description: Numero de vulnerabilidades altas
+    name: high-count
+    type: string
+  - description: Status do scan (passed/failed)
+    name: scan-status
+    type: string
   steps:
-    - name: grype-scan
-      image: harbor.archublab.com/mirror/library/alpine:3.19-6baf43584bcb@sha256:b58899f069c47216f6002a6850143dc6fae0d35eb8b0df9300bbe6327b9c2171
-      workingDir: $(workspaces.source.path)/$(params.source-path)
-      script: |
-        #!/bin/sh
-        echo "=== Installing Grype ==="
-        wget -qO- https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin v0.104.3
-
-        set -e
-
-        echo "=== Grype Vulnerability Scanner ==="
-        echo "Source Path: $(params.source-path)"
-        echo "Fail on Severity: $(params.fail-on-severity)"
-        echo "Ignore stdlib: $(params.ignore-stdlib)"
-        echo ""
-
-        # Configurar exit code baseado na severidade
-        case "$(params.fail-on-severity)" in
-          "critical") FAIL_ON="critical" ;;
-          "high")     FAIL_ON="high" ;;
-          "medium")   FAIL_ON="medium" ;;
-          "low")      FAIL_ON="low" ;;
-          *)          FAIL_ON="high" ;;
-        esac
-
-        # Opcoes adicionais
-        EXTRA_OPTS=""
-        if [ "$(params.only-fixed)" = "true" ]; then
-          EXTRA_OPTS="$EXTRA_OPTS --only-fixed"
-        fi
-
-        # Criar arquivo de configuracao para ignorar stdlib se habilitado
-        if [ "$(params.ignore-stdlib)" = "true" ]; then
-          echo "ignore:" > .grype.yaml
-          echo "  - package:" >> .grype.yaml
-          echo "      name: stdlib" >> .grype.yaml
-          echo "      type: go-module" >> .grype.yaml
-          echo "Created .grype.yaml to ignore stdlib vulnerabilities"
-        fi
-
-        echo "=== Scanning Dependencies ==="
-
-        # Executar scan e capturar resultado
-        SCAN_OUTPUT=$(mktemp)
-        SCAN_EXIT=0
-
-        grype dir:. \
-          --output $(params.output-format) \
-          --fail-on ${FAIL_ON} \
-          ${EXTRA_OPTS} \
-          2>&1 | tee ${SCAN_OUTPUT} || SCAN_EXIT=$?
-
-        echo ""
-        echo "=== Scan Summary ==="
-
-        # Contar vulnerabilidades - usando valores default de 0
-        CRITICAL_COUNT=$(grep -c "Critical" ${SCAN_OUTPUT} 2>/dev/null || true)
-        HIGH_COUNT=$(grep -c "High" ${SCAN_OUTPUT} 2>/dev/null || true)
-        MEDIUM_COUNT=$(grep -c "Medium" ${SCAN_OUTPUT} 2>/dev/null || true)
-        LOW_COUNT=$(grep -c "Low" ${SCAN_OUTPUT} 2>/dev/null || true)
-
-        # Garantir que os valores sao numeros
-        CRITICAL_COUNT=${CRITICAL_COUNT:-0}
-        HIGH_COUNT=${HIGH_COUNT:-0}
-        MEDIUM_COUNT=${MEDIUM_COUNT:-0}
-        LOW_COUNT=${LOW_COUNT:-0}
-
-        # Remover espaços e garantir que são números válidos
-        CRITICAL_COUNT=$(echo "$CRITICAL_COUNT" | tr -d ' ' | grep -E '^[0-9]+$' || echo "0")
-        HIGH_COUNT=$(echo "$HIGH_COUNT" | tr -d ' ' | grep -E '^[0-9]+$' || echo "0")
-        MEDIUM_COUNT=$(echo "$MEDIUM_COUNT" | tr -d ' ' | grep -E '^[0-9]+$' || echo "0")
-        LOW_COUNT=$(echo "$LOW_COUNT" | tr -d ' ' | grep -E '^[0-9]+$' || echo "0")
-
-        TOTAL_COUNT=$((CRITICAL_COUNT + HIGH_COUNT + MEDIUM_COUNT + LOW_COUNT))
-
-        echo "Critical: ${CRITICAL_COUNT}"
-        echo "High: ${HIGH_COUNT}"
-        echo "Medium: ${MEDIUM_COUNT}"
-        echo "Low: ${LOW_COUNT}"
-        echo "Total: ${TOTAL_COUNT}"
-
-        # Escrever resultados
-        printf "%s" "${TOTAL_COUNT}" > "$(results.vulnerabilities-count.path)"
-        printf "%s" "${CRITICAL_COUNT}" > "$(results.critical-count.path)"
-        printf "%s" "${HIGH_COUNT}" > "$(results.high-count.path)"
-
-        if [ ${SCAN_EXIT} -eq 0 ]; then
-          printf "passed" > "$(results.scan-status.path)"
-          echo ""
-          echo "=== Scan PASSED ==="
-        else
-          printf "failed" > "$(results.scan-status.path)"
-          echo ""
-          echo "=== Scan FAILED - Vulnerabilities found above threshold ==="
-          exit 1
-        fi
-      computeResources:
-        requests:
-          memory: "256Mi"
-          cpu: "100m"
-        limits:
-          memory: "1Gi"
-          cpu: "500m"
+  - computeResources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    env:
+    - name: HOME
+      value: /tekton/home
+    - name: GRYPE_DB_CACHE_DIR
+      value: /tekton/home/.cache/grype
+    image: harbor.archublab.com/mirror/anchore/grype:v0.118.0-debug@sha256:96dc648def42b0eb75a04bc4911f463dd24c9e18851d543033f568d216902ce9
+    name: grype-scan
+    script: |
+      #!/busybox/sh
+      # grype's own exit code decides the result (no pipe: in sh a pipeline returns the last command's status)
+      set -eu
+      case "$(params.fail-on-severity)" in
+        critical|high|medium|low) FAIL_ON="$(params.fail-on-severity)" ;;
+        *) FAIL_ON=high ;;
+      esac
+      CONFIG=/tekton/home/grype.yaml
+      : > "$CONFIG"
+      if [ "$(params.ignore-stdlib)" = "true" ]; then
+        printf 'ignore:\n  - package:\n      name: stdlib\n      type: go-module\n' > "$CONFIG"
+      fi
+      EXTRA=""
+      if [ "$(params.only-fixed)" = "true" ]; then EXTRA="--only-fixed"; fi
+      echo "=== Grype: fail on ${FAIL_ON} ==="
+      set +e
+      /grype dir:. --config "$CONFIG" --output table --output "json=/tekton/home/grype.json" ${EXTRA} --fail-on "${FAIL_ON}"
+      SCAN_EXIT=$?
+      set -e
+      count() { grep -o "\"severity\":\"$1\"" /tekton/home/grype.json 2>/dev/null | wc -l | tr -d ' '; }
+      CRITICAL=$(count Critical)
+      HIGH=$(count High)
+      TOTAL=$(grep -o '"vulnerability":{' /tekton/home/grype.json 2>/dev/null | wc -l | tr -d ' ')
+      echo "Critical: ${CRITICAL} High: ${HIGH} Total: ${TOTAL}"
+      printf "%s" "${TOTAL}" > "$(results.vulnerabilities-count.path)"
+      printf "%s" "${CRITICAL}" > "$(results.critical-count.path)"
+      printf "%s" "${HIGH}" > "$(results.high-count.path)"
+      if [ "${SCAN_EXIT}" -ne 0 ]; then
+        printf failed > "$(results.scan-status.path)"
+        echo "=== Scan FAILED (grype exit ${SCAN_EXIT}) ==="
+        exit 1
+      fi
+      printf passed > "$(results.scan-status.path)"
+      echo "=== Scan PASSED ==="
+    workingDir: $(workspaces.source.path)/$(params.source-path)
+  workspaces:
+  - description: Workspace com o codigo fonte
+    name: source
