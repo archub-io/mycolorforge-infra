@@ -37,7 +37,6 @@ tekton/
 │   ├── golang-test.yaml      # Testes Go
 │   ├── nodejs-build.yaml     # Build Next.js
 │   ├── kaniko-build.yaml     # Build de imagem OCI
-│   ├── trivy-scan.yaml       # Scan de vulnerabilidades
 │   └── kustomize-update.yaml # Atualização GitOps
 ├── pipelines/                # Definições de pipelines
 │   ├── api-pipeline.yaml     # Pipeline do Go API
@@ -263,7 +262,10 @@ kubectl logs -l eventlistener=mycolorforge-listener -n tekton-pipelines -f
 
 ### Alterar thresholds de segurança
 
-Edite `trivy-scan.yaml`:
+A analise de vulnerabilidades ja nao vive aqui. Havia tres copias do mesmo
+`trivy-scan`, com o mesmo nome no mesmo namespace, e quem aplicasse por
+ultimo ganhava. Passou a existir uma so, em
+`archub-infra/ci-cd/tekton/tasks/trivy-scan.yaml`. Editar la:
 ```yaml
 params:
   - name: severity
