@@ -14,22 +14,6 @@ spec:
       port: 9000
       targetPort: 9000
   type: ClusterIP
----
-# NodePort para acesso externo durante setup
-apiVersion: v1
-kind: Service
-metadata:
-  name: sonarqube-external
-  namespace: sonarqube
-  labels:
-    app.kubernetes.io/name: sonarqube
-    app.kubernetes.io/component: server
-spec:
-  selector:
-    app: sonarqube
-  ports:
-    - name: http
-      port: 9000
-      targetPort: 9000
-      nodePort: 30909
-  type: NodePort
+# sonarqube-external (NodePort 30909, "acesso externo durante setup") removed on 2026-10-14: it
+# reached SonarQube directly on every node IP, bypassing the oauth2-proxy that the Envoy Gateway
+# route sonar-lan puts in front of it.

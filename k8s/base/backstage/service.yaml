@@ -13,22 +13,8 @@ spec:
       port: 80
       targetPort: 7007
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: backstage-external
-  namespace: backstage
-  labels:
-    app: backstage
-spec:
-  type: NodePort
-  selector:
-    app: backstage
-  ports:
-    - name: http
-      port: 80
-      targetPort: 7007
-      nodePort: 30700
+# backstage-external (NodePort 30700) removed on 2026-10-14: Backstage is reached through the
+# Envoy Gateway route backstage-lan, and nothing in the cluster used the node port.
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
