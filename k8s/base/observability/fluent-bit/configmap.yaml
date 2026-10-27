@@ -21,10 +21,14 @@ data:
         Name              tail
         Tag               kube.*
         Path              /var/log/containers/*.log
-    # Build pods come and go by the hundred and Tekton keeps their logs; tailing them all
-    # exceeded fluent-bit's 1024 open files on worker01
-    Exclude_Path      /var/log/containers/*_tekton-pipelines_*.log
-        Parser            docker
+        # Build pods come and go by the hundred and Tekton keeps their logs; tailing them all
+        # exceeded fluent-bit's 1024 open files on worker01
+        Exclude_Path      /var/log/containers/*_tekton-pipelines_*.log
+        # The nodes run containerd, whose log lines are "<time> <stream> <F|P> <message>",
+        # not Docker JSON. With the docker parser the whole line, prefix included, ended up
+        # as a string inside {"log": "..."}, so no `| json` field, line filter on
+        # "evento":"..." or traceId derived field could match it in Loki.
+        Parser            containerd
         DB                /var/fluent-bit/flb_kube.db
         Mem_Buf_Limit     50MB
         Skip_Long_Lines   On
@@ -37,17 +41,25 @@ data:
         Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
         Kube_Tag_Prefix     kube.var.log.containers.
+        # Pod specs bigger than the 32k default are discarded and the record loses its
+        # metadata (then the grep below drops it): "cannot increase buffer" in the logs.
+        Buffer_Size         256k
+        # A JSON message is lifted to the top level of the record and `log` is dropped, so the
+        # line in Loki is the app's own JSON (`| json`, `|= "evento":"..."` and the traceId
+        # derived field match it). Plain text stays as {"log": "..."}.
         Merge_Log           On
-        Merge_Log_Key       log_processed
+        Keep_Log            Off
         K8S-Logging.Parser  On
         K8S-Logging.Exclude Off
         Labels              On
         Annotations         Off
 
+    # Only these namespaces go to Loki. getwalletly was missing, so the Getwalletly
+    # dashboard and the `pedido_lento` metric saw nothing from its api.
     [FILTER]
         Name    grep
         Match   kube.*
-        Regex   $kubernetes['namespace_name'] ^(colorforge|observability)$
+        Regex   $kubernetes['namespace_name'] ^(colorforge|observability|getwalletly)$
 
     [OUTPUT]
         Name                   loki
@@ -56,7 +68,7 @@ data:
         Port                   3100
         Labels                 job=fluent-bit, namespace=$kubernetes['namespace_name'], pod=$kubernetes['pod_name'], container=$kubernetes['container_name'], app=$kubernetes['labels']['app']
         Label_Keys             $kubernetes['namespace_name'],$kubernetes['pod_name'],$kubernetes['container_name']
-        Remove_Keys            kubernetes,stream
+        Remove_Keys            kubernetes,stream,logtag
         Auto_Kubernetes_Labels off
         Line_Format            json
 
