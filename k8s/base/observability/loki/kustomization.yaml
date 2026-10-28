@@ -1,7 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# Aplicar ESTA pasta (kubectl apply -k k8s/base/observability/loki/), nao a pasta de cima: o
+# commonLabels de la mexeria no selector do Deployment, que e imutavel.
 resources:
   - configmap.yaml
-  - statefulset.yaml
+  - deployment.yaml
   - service.yaml

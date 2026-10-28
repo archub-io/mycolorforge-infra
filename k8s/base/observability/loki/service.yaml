@@ -18,29 +18,3 @@ spec:
       protocol: TCP
   selector:
     app: loki
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: loki-headless
-  namespace: observability
-  labels:
-    app: loki
-spec:
-  type: ClusterIP
-  clusterIP: None
-  ports:
-    - name: http
-      port: 3100
-      targetPort: 3100
-      protocol: TCP
-    - name: grpc
-      port: 9096
-      targetPort: 9096
-      protocol: TCP
-    - name: memberlist
-      port: 7946
-      targetPort: 7946
-      protocol: TCP
-  selector:
-    app: loki

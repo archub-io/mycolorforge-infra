@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   name: loki
   namespace: observability
@@ -7,10 +7,6 @@ metadata:
     app: loki
 spec:
   replicas: 1
-  serviceName: loki-headless
-  podManagementPolicy: Parallel
-  updateStrategy:
-    type: RollingUpdate
   selector:
     matchLabels:
       app: loki
@@ -18,22 +14,20 @@ spec:
     metadata:
       labels:
         app: loki
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "3100"
-        prometheus.io/path: "/metrics"
     spec:
       securityContext:
         fsGroup: 10001
         runAsNonRoot: true
         runAsUser: 10001
-      terminationGracePeriodSeconds: 300
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: loki
-          image: grafana/loki:3.0.0
+          image: harbor.archublab.com/mirror/grafana/loki:2.9.3-eb92f1a43917@sha256:d8585a80d577a849ac56393e10ee9a4475a55aca527f50ce722efeb39d8f59c1
           args:
             - '-config.file=/etc/loki/loki.yaml'
-            - '-target=all'
           ports:
             - name: http
               containerPort: 3100
@@ -41,52 +35,33 @@ spec:
             - name: grpc
               containerPort: 9096
               protocol: TCP
-            - name: memberlist
-              containerPort: 7946
-              protocol: TCP
           livenessProbe:
             httpGet:
               path: /ready
               port: http
             initialDelaySeconds: 45
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 5
           readinessProbe:
             httpGet:
               path: /ready
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
           resources:
             requests:
-              cpu: 250m
-              memory: 512Mi
+              cpu: 100m
+              memory: 256Mi
             limits:
-              cpu: 1000m
-              memory: 2Gi
+              cpu: 500m
+              memory: 1Gi
           volumeMounts:
             - name: config
               mountPath: /etc/loki
-            - name: loki-data
+            - name: storage
               mountPath: /loki
-          env:
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
       volumes:
         - name: config
           configMap:
             name: loki-config
-  volumeClaimTemplates:
-    - metadata:
-        name: loki-data
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: 50Gi
+        - name: storage
+          emptyDir: {}
