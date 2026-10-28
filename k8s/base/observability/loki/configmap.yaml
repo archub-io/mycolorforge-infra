@@ -47,12 +47,22 @@ data:
     analytics:
       reporting_enabled: false
 
+    # Fila de pedidos de consulta por inquilino. Com os 100 por omissao, abrir o dashboard do
+    # Grafana (13 consultas em simultaneo, cada uma partida em fatias) enche a fila: o agendador
+    # descarta pedidos e o Loki responde 429 a consulta (o push nunca recebeu 429).
+    query_scheduler:
+      max_outstanding_requests_per_tenant: 2048
+
     limits_config:
       retention_period: 336h  # 14 dias; o compactor apaga o que for mais velho
+      # Ingestao: ~4 KB/s de media, pico de 16 KB/s num minuto. Os limites abaixo sao >600x o pico.
       ingestion_rate_mb: 10
       ingestion_burst_size_mb: 20
       max_streams_per_user: 10000
       max_line_size: 256kb
+      # Poucos dados (~360 MB por dia em bruto): fatias de 6h bastam e dao 4 sub-pedidos
+      # por dia consultado em vez de 48 (30m por omissao).
+      split_queries_by_interval: 6h
 
     compactor:
       working_directory: /loki/compactor
