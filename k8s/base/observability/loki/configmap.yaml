@@ -48,7 +48,7 @@ data:
       reporting_enabled: false
 
     limits_config:
-      retention_period: 168h  # 7 days
+      retention_period: 336h  # 14 dias; o compactor apaga o que for mais velho
       ingestion_rate_mb: 10
       ingestion_burst_size_mb: 20
       max_streams_per_user: 10000

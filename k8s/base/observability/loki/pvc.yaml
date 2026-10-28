@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-data
+  namespace: observability
+  labels:
+    app: loki
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      # 14 dias de logs ocupam ~0,65 GB (44 MB/dia comprimido). O local-path nao impoe o tamanho
+      # nem deixa expandir o PVC, por isso fica folga (15x) em vez de um valor justo.
+      storage: 10Gi

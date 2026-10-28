@@ -7,6 +7,9 @@ metadata:
     app: loki
 spec:
   replicas: 1
+  # O volume e ReadWriteOnce e o WAL e o indice tem um unico dono: nunca dois pods ao mesmo tempo.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: loki
@@ -19,9 +22,15 @@ spec:
         fsGroup: 10001
         runAsNonRoot: true
         runAsUser: 10001
+      # O local-path prende o volume ao no onde o pod arranca pela primeira vez. O worker02 e o
+      # unico com disco estavel (71 GB livres, sem DiskPressure desde 16/09); o worker01 e o
+      # master entram em DiskPressure. O taint do pool de IA obriga a toleration.
+      nodeSelector:
+        archub.io/workload: ai
       tolerations:
-        - key: node-role.kubernetes.io/control-plane
-          operator: Exists
+        - key: archub.io/workload
+          operator: Equal
+          value: ai
           effect: NoSchedule
       containers:
         - name: loki
@@ -64,4 +73,5 @@ spec:
           configMap:
             name: loki-config
         - name: storage
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: loki-data

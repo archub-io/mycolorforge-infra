@@ -5,5 +5,6 @@ kind: Kustomization
 # commonLabels de la mexeria no selector do Deployment, que e imutavel.
 resources:
   - configmap.yaml
+  - pvc.yaml
   - deployment.yaml
   - service.yaml
