@@ -277,3 +277,23 @@ params:
 ### Adicionar notificações Slack
 
 Crie uma Task de notificação e adicione ao `finally` do Pipeline.
+
+## kustomize-update: corridas entre runs
+
+Os runs de todos os produtos escrevem no mesmo repo de infra e acabam fora de ordem. A Task `kustomize-update`:
+
+- so escreve se o commit do run ainda e o HEAD de `main` na app (`git ls-remote`; o URL da app e o commit saem do
+  checkout que a task `clone` deixou no workspace). Se ja ha um commit mais novo, salta com uma mensagem clara e
+  termina com sucesso: o run desse commit escreve a sua propria imagem;
+- se o push perde a corrida (non-fast-forward, cannot lock ref), faz `git pull --rebase` e repete, ate 5 vezes com
+  espera curta, e volta a confirmar o HEAD da app antes de cada tentativa;
+- um erro de push que nao e corrida falha logo.
+
+Os parametros e os resultados da Task nao mudaram. Os testes correm o script do YAML num Alpine 3.19 (o mesmo BusyBox,
+git e kustomize da Task) contra repos git descartaveis e nao tocam no cluster. Da raiz do repo, no Git Bash do Windows:
+
+```bash
+MSYS_NO_PATHCONV=1 podman run --rm -v "$(pwd -W):/repo:ro" docker.io/library/alpine:3.19 sh /repo/tekton/tests/kustomize-update/test.sh
+```
+
+Em Linux ou macOS, `-v "$PWD:/repo:ro"` e sem a variavel. `VERBOSE=1` mostra o log do step de cada caso.

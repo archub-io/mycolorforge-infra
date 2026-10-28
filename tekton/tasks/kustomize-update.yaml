@@ -1,10 +1,15 @@
+# Task partilhada por todos os produtos: o nome e unico no namespace e ganha a ultima a ser aplicada.
+# O label e o e-mail por omissao seguem o que esta no cluster (vieram do getwalletly): mudar o script
+# nao pode mexer na interface de nenhuma pipeline. Aplicar so este ficheiro, nao a pasta inteira:
+#   kubectl apply -f tekton/tasks/kustomize-update.yaml
+# Testes (corrida entre runs, run de um commit antigo, erros de push): tekton/tests/kustomize-update/test.sh
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: kustomize-update
   namespace: tekton-pipelines
   labels:
-    app.kubernetes.io/part-of: mycolorforge
+    app.kubernetes.io/part-of: getwalletly
 spec:
   description: |
     Update Kustomize overlay with new image tag/digest.
@@ -38,7 +43,7 @@ spec:
     - name: git-user-email
       type: string
       description: Git user email for commit
-      default: "tekton@mycolorforge.com"
+      default: "tekton@getwalletly.com"
   workspaces:
     - name: source
       description: Workspace for cloning the repo
@@ -119,6 +124,122 @@ spec:
           fi
         fi
 
+        # --- Concorrencia entre runs --------------------------------------------------
+        # Os runs de todos os produtos escrevem no mesmo ramo do repo de infra e acabam
+        # por ordem diferente da dos commits. Isso deu dois defeitos:
+        #  - um push que perdia a corrida (non-fast-forward, cannot lock ref) falhava sem
+        #    repetir: a imagem ficava construida e por publicar;
+        #  - um run lento de um commit antigo escrevia a imagem antiga por cima da nova.
+        # Agora so escreve o run cujo commit ainda e o HEAD de main na app, e o push que
+        # perde a corrida repete depois de `git pull --rebase`, com espera curta.
+        # A app e o checkout que a task `clone` deixou neste workspace: nenhum parametro novo.
+        APP_BRANCH=main
+        PUSH_MAX_ATTEMPTS="${PUSH_MAX_ATTEMPTS:-5}"
+        PUSH_RETRY_DELAY="${PUSH_RETRY_DELAY:-2}"
+        APP_URL=""
+        RUN_COMMIT=""
+        if [ -d "${WORKSPACE_SOURCE_PATH}/.git" ]; then
+          git config --global --add safe.directory "${WORKSPACE_SOURCE_PATH}"
+          APP_URL=$(git -C "${WORKSPACE_SOURCE_PATH}" remote get-url origin 2>/dev/null || true)
+          RUN_COMMIT=$(git -C "${WORKSPACE_SOURCE_PATH}" rev-parse HEAD 2>/dev/null || true)
+        fi
+        # O URL pode trazer credenciais: so se imprime sem elas.
+        APP_URL_SHOWN=$(printf '%s' "${APP_URL}" | sed -E 's|//[^/@]*@|//|')
+
+        # Imprime o HEAD de APP_BRANCH na app (nada, se o ramo nao existe). Falha se a app nao responde,
+        # e deixa o erro do git em /tmp/ls-remote.err.
+        app_head() {
+          tries=0
+          while :; do
+            tries=$((tries + 1))
+            if refs=$(timeout 60 git ls-remote "${APP_URL}" "refs/heads/${APP_BRANCH}" 2>/tmp/ls-remote.err); then
+              printf '%s\n' "${refs}" | awk -v ref="refs/heads/${APP_BRANCH}" '$2 == ref { print $1 }'
+              return 0
+            fi
+            [ "${tries}" -lt 3 ] || return 1
+            sleep $((tries * PUSH_RETRY_DELAY))
+          done
+        }
+
+        # So escreve quem ainda e o HEAD de main na app. Se la ja esta um commit mais novo, o step
+        # termina com sucesso sem escrever: o run desse commit escreve a sua propria imagem.
+        # Se nao da para confirmar (sem checkout, sem o ramo, app sem resposta) avisa e deixa
+        # escrever, como antes: esta guarda nao pode bloquear deploys.
+        require_app_head() {
+          if [ -z "${APP_URL}" ] || [ -z "${RUN_COMMIT}" ]; then
+            echo "AVISO: nao ha checkout da app em ${WORKSPACE_SOURCE_PATH}; nao confirmo o HEAD da app e escrevo na mesma"
+            return 0
+          fi
+          if ! head_now=$(app_head); then
+            sed -E 's|//[^/@]*@|//|g' /tmp/ls-remote.err
+            echo "AVISO: ${APP_URL_SHOWN} nao respondeu; nao confirmo o HEAD da app e escrevo na mesma"
+            return 0
+          fi
+          if [ -z "${head_now}" ]; then
+            echo "AVISO: ${APP_BRANCH} nao existe em ${APP_URL_SHOWN}; nao confirmo o HEAD da app e escrevo na mesma"
+            return 0
+          fi
+          if [ "${head_now}" = "${RUN_COMMIT}" ]; then
+            echo "HEAD da app confirmado: ${RUN_COMMIT} e o HEAD de ${APP_BRANCH} em ${APP_URL_SHOWN}"
+            return 0
+          fi
+          echo ""
+          echo "=== SALTADO: este run ja nao e o HEAD de ${APP_BRANCH} ==="
+          echo "Este run construiu ${RUN_COMMIT}."
+          echo "O HEAD de ${APP_BRANCH} em ${APP_URL_SHOWN} ja e ${head_now}."
+          echo "O run desse commit escreve a sua propria imagem; nao escrevo a antiga por cima da nova."
+          echo "Nada foi enviado para ${GIT_URL}."
+          printf "skipped-stale" > /tekton/results/commit-sha
+          exit 0
+        }
+
+        # Escreve a imagem nova no overlay e faz commit. Se nao ha nada a mudar, termina o step.
+        commit_image_update() {
+          cd "${WORKSPACE_SOURCE_PATH}/manifest-repo/${OVERLAY_PATH}"
+
+          if [ -n "${NEW_DIGEST}" ]; then
+            /tmp/kustomize edit set image "${IMAGE_NAME}=${IMAGE_NAME}@${NEW_DIGEST}"
+            echo "Updated ${IMAGE_NAME} to digest ${NEW_DIGEST}"
+          else
+            /tmp/kustomize edit set image "${IMAGE_NAME}=${IMAGE_NAME}:${NEW_TAG}"
+            echo "Updated ${IMAGE_NAME} to tag ${NEW_TAG}"
+          fi
+
+          # Show changes
+          echo ""
+          echo "=== Changes ==="
+          git diff
+
+          cd "${WORKSPACE_SOURCE_PATH}/manifest-repo"
+          git add .
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            printf "no-change" > /tekton/results/commit-sha
+            exit 0
+          fi
+          commit_msg=$(printf '%s\n\n%s\n\n%s\n%s\n%s' \
+            "chore(deploy): update ${IMAGE_NAME} to ${NEW_TAG:-${NEW_DIGEST}}" \
+            "Automated update by Tekton Pipeline" \
+            "Image: ${IMAGE_NAME}" \
+            "Tag: ${NEW_TAG}" \
+            "Digest: ${NEW_DIGEST}")
+          git commit -m "${commit_msg}"
+        }
+
+        # Poe o commit local por cima do que o run que ganhou a corrida empurrou. Se o rebase der
+        # conflito (o outro mexeu nas mesmas linhas) refaz-se o commit sobre o ramo mais recente:
+        # a edicao do kustomize e idempotente.
+        sync_with_remote() {
+          if git pull --rebase origin "${GIT_BRANCH}"; then
+            return 0
+          fi
+          echo "O pull --rebase deu conflito; refaco o commit sobre o ${GIT_BRANCH} mais recente"
+          git rebase --abort || true
+          git fetch origin "${GIT_BRANCH}"
+          git reset --hard FETCH_HEAD
+          commit_image_update
+        }
+
         # Clone repository
         echo "=== Cloning Repository ==="
         rm -rf manifest-repo
@@ -131,40 +252,34 @@ spec:
 
         # Update kustomization.yaml
         echo "=== Updating Kustomization ==="
-        cd "${OVERLAY_PATH}"
+        commit_image_update
 
-        if [ -n "${NEW_DIGEST}" ]; then
-          /tmp/kustomize edit set image "${IMAGE_NAME}=${IMAGE_NAME}@${NEW_DIGEST}"
-          echo "Updated ${IMAGE_NAME} to digest ${NEW_DIGEST}"
-        else
-          /tmp/kustomize edit set image "${IMAGE_NAME}=${IMAGE_NAME}:${NEW_TAG}"
-          echo "Updated ${IMAGE_NAME} to tag ${NEW_TAG}"
-        fi
-
-        # Show changes
-        echo ""
-        echo "=== Changes ==="
-        git diff
-
-        # Commit and push
-        cd "${WORKSPACE_SOURCE_PATH}/manifest-repo"
-        git add .
-
-        git commit -m "chore(deploy): update ${IMAGE_NAME} to ${NEW_TAG:-${NEW_DIGEST}}
-
-        Automated update by Tekton Pipeline
-
-        Image: ${IMAGE_NAME}
-        Tag: ${NEW_TAG}
-        Digest: ${NEW_DIGEST}" || {
-          echo "No changes to commit"
-          printf "no-change" > /tekton/results/commit-sha
-          exit 0
-        }
-
+        # Push. A guarda corre antes de cada tentativa, a primeira incluida.
         echo ""
         echo "=== Pushing Changes ==="
-        git push origin "${GIT_BRANCH}"
+        attempt=1
+        while :; do
+          require_app_head
+          if LC_ALL=C git push origin "${GIT_BRANCH}" > /tmp/push.log 2>&1; then
+            cat /tmp/push.log
+            break
+          fi
+          cat /tmp/push.log
+          if ! grep -Eq 'non-fast-forward|fetch first|cannot lock ref' /tmp/push.log; then
+            echo "ERRO: o push falhou e nao foi por corrida; nao repito"
+            exit 1
+          fi
+          if [ "${attempt}" -ge "${PUSH_MAX_ATTEMPTS}" ]; then
+            echo "ERRO: o push perdeu a corrida ${attempt} vezes seguidas; desisto"
+            exit 1
+          fi
+          wait_s=$((attempt * PUSH_RETRY_DELAY))
+          echo "Corrida no push (tentativa ${attempt} de ${PUSH_MAX_ATTEMPTS}): outro run escreveu em ${GIT_BRANCH} ao mesmo tempo."
+          echo "Espero ${wait_s}s, faco pull --rebase e repito."
+          sleep "${wait_s}"
+          sync_with_remote
+          attempt=$((attempt + 1))
+        done
 
         # Write commit SHA
         COMMIT_SHA=$(git rev-parse HEAD)
